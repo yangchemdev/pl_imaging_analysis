@@ -34,6 +34,33 @@ def first_with_w_idx(strings):
         if 'w' in s:
             return idx
     return None   # if nothing contains 'w'
+import numpy as np
+
+def bin_rows_2D(data: np.ndarray, w: int) -> np.ndarray:
+    if data.ndim != 2:
+        raise ValueError("data must be 2D")
+    if w <= 0:
+        raise ValueError("w must be positive")
+    N = data.shape[0]
+    K = N // w  # number of full bins
+    trimmed = data[:K * w]  # discard leftover rows
+
+    # reshape to (K, m, D) then average along axis 1
+    return trimmed.reshape(K, w, -1).mean(axis=1)
+
+def bin_rows_1D(data: np.ndarray, w: int) -> np.ndarray:
+    if data.ndim != 1:
+        raise ValueError("data must be 1D")
+    if w <= 0:
+        raise ValueError("w must be positive")
+
+    N = data.shape[0]
+    K = N // w  # number of full bins
+    trimmed = data[:K * w]  # discard leftover rows
+
+    # reshape to (K, w) then average along axis 1
+    return trimmed.reshape(K, w).mean(axis=1)
+
 
 #%% config
 ##### data params #####
@@ -44,6 +71,7 @@ mag = 100  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
 t_range = [0, 50]  # time range to analyze, in ns. If None, will use full range
+t_binning_width = 11 # time binning factor. If None, no binning.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
 smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
@@ -78,6 +106,7 @@ params_data = hyconfig.code_section([
 params_process = hyconfig.code_section([
     ("x_range", x_range),   # spatial range to analyze, in um. If None, will use full range
     ("t_range", t_range),  # time range to analyze, in ns. If None, will use full range
+    ("t_binning_width", t_binning_width), # time binning factor. If None, no binning.
     ("smooth_x", smooth_x),  # smoothing boxcar in x direction, no unit. If None, no smoothing
     ("smooth_t", smooth_t),  # smoothing boxcar in t direction, no unit. If None, no smoothing
     ("x_fit_model", x_fit_model.funcname),  # model to fit spatial profile
@@ -102,6 +131,13 @@ nx = data.shape[1]
 t = np.arange(nt) * params_data.t_step
 x_step = params_data.motor_step / params_data.mag  # in um
 x = np.arange(nx) * x_step  # in um
+
+# t binning
+if t_binning_width is not None:
+    half_bin = t_binning_width // 2
+    data = bin_rows_2D(data, t_binning_width)
+    t = bin_rows_1D(t, t_binning_width)
+    nt = data.shape[0]
 
 # make average 
 data_tavg = np.mean(data, axis = 0)     # average over time. Now only have x axis
