@@ -75,7 +75,7 @@ t_binning_width = 11 # time binning factor. If None, no binning.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
 smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
-t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 100]))  # model to fit time profile. Currently only supports exp decay
+t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 100]), trig_non_negative=True)  # model to fit time profile. Currently only supports exp decay
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
 displacement_source = 'MSD' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ##### visualize params #####
@@ -246,13 +246,22 @@ dis2_r2 = dis2_fitter.r2
 
 #%% visualize
 # plot 2D map
-fig, axes = plt.subplots(1,3, figsize=(12,4))
+fig, axes = plt.subplots(1,3, figsize=(12,4), dpi=300)
 im0 = axes[0].imshow(data_normall, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
+axes[0].set_xlabel('x (um)')
+axes[0].set_ylabel('Time (ns)')
 cb0 = hyp.colorbar_magic(im0)
+
 img1 = axes[1].imshow(data_norm_t, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
+axes[1].set_xlabel('x (um)')
+axes[1].set_ylabel('Time (ns)')
 cb1 = hyp.colorbar_magic(img1)
+
 plot_raw = axes[2].semilogy(dt, data_xavg, label='spatial averaged data')
 plot_fitted = axes[2].semilogy(dt, tfit_data, label='fit', linestyle='--')
+axes[2].set_xlabel('Time (ns)')
+axes[2].set_ylabel('Intensity (a.u.)')
+
 
 fig.suptitle(f'PL imaging raw data\n{name}')
 axes[0].set_title('Normalized to global max')
@@ -269,18 +278,20 @@ n_params_to_draw = n_xfit_params+2  # plus one for R2 and D2
 n_cols = int(np.ceil(np.sqrt(n_params_to_draw)))
 n_rows = int(np.ceil(n_params_to_draw / n_cols))
 # make figure
-fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*4, n_rows*3))
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*4, n_rows*3), dpi=300)
 axes = axes.flatten()
 fig.suptitle(f'PL  parameters over time\n{name}')
 # plot fitting params
 for idplot in range(n_xfit_params):
     axes[idplot].plot(dt, xfit_params[:, idplot], label=f'Param {idplot}', linewidth=2)
+    ylim = axes[idplot].get_ylim()  # freeze current ylim
     lower_bound = xfit_params[:, idplot] - xfit_stds[:, idplot]
     upper_bound = xfit_params[:, idplot] + xfit_stds[:, idplot]
     axes[idplot].fill_between(dt, lower_bound, upper_bound, alpha=0.3)
     axes[idplot].set_title(f'Fitted parameter {xfit_param_names[idplot]}')
     axes[idplot].set_xlabel('Time (ns)')
-    axes[idplot].set_ylabel(f'Parameter {idplot} value')
+    axes[idplot].set_ylabel(f'{idplot} ')
+    axes[idplot].set_ylim(ylim)         # reapply ylim
 #plot r2
 xfit_r2[xfit_status != 1] = -1  # set R2 to -1 if fit failed
 axes[idplot+1].plot(dt, xfit_r2, label='R2', color='orange', linewidth=2)
