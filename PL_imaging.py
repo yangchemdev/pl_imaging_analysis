@@ -70,16 +70,16 @@ motor_step = 20 # motor step in um
 mag = 100  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [0, 50]  # time range to analyze, in ns. If None, will use full range
-t_binning_width = 11 # time binning factor. If None, no binning.
+t_range = [0, 500]  # time range to analyze, in ns. If None, will use full range
+t_binning_width = 21 # time binning factor. If None, no binning.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
 smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
 t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 100]), trig_non_negative=True)  # model to fit time profile. Currently only supports exp decay
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
-displacement_source = 'MSD' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ##### visualize params #####
-pass
+param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 
@@ -207,7 +207,7 @@ xfit_r2 = np.zeros(nt)
 xfit_status = np.zeros(nt)
 # fit
 for idt in tqdm(range(nt)):
-    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, dx, data[idt, :])
+    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, dx, data[idt, :], lb=np.array([0, -np.inf, 0, 0]), hb=np.array([np.inf, np.inf, np.inf, np.inf]))
     x_fitter.fit()
     xfit_params[idt, :] = x_fitter.params['value']
     xfit_stds[idt, :] = x_fitter.params['std']
@@ -236,10 +236,17 @@ elif displacement_source == 'MSD':
 else: 
     raise ValueError(f"Unknown D_source: {displacement_source}. Should be 'fit' or 'MSD'.")
 # linear fit to dis2 vs time
-dis2_fitter = hyf.fitter_1D('D_fit', hyf.func_class_linear, dt, dis2)
+# remove nan
+valid_mask = ~np.isnan(dis2)
+dis2_tofit = dis2[valid_mask]
+dt_tofit = dt[valid_mask]
+# make fitter
+dis2_fitter = hyf.fitter_1D('D_fit', hyf.func_class_linear, dt_tofit, dis2_tofit)
 dis2_fitter.fit()
-D = dis2_fitter.params['value'][0] / 4  # diffusion coefficient in 2D
+D = dis2_fitter.params['value'][0] / 4  # diffusion coefficient in 2D, unit in um2/ns
+D = D * 10  # convert to cm2/s
 D_std = dis2_fitter.params['std'][0] / 4
+D_std = D_std * 10  # convert to cm2/s
 dis2_fit = dis2_fitter.y_fit
 dis2_residual = dis2_fitter.residue
 dis2_r2 = dis2_fitter.r2
@@ -290,7 +297,7 @@ for idplot in range(n_xfit_params):
     axes[idplot].fill_between(dt, lower_bound, upper_bound, alpha=0.3)
     axes[idplot].set_title(f'Fitted parameter {xfit_param_names[idplot]}')
     axes[idplot].set_xlabel('Time (ns)')
-    axes[idplot].set_ylabel(f'{idplot} ')
+    axes[idplot].set_ylabel(f'{xfit_param_names[idplot]} ({param_units[idplot]})')
     axes[idplot].set_ylim(ylim)         # reapply ylim
 #plot r2
 xfit_r2[xfit_status != 1] = -1  # set R2 to -1 if fit failed
@@ -301,7 +308,7 @@ axes[idplot+1].set_title('Fitting R2. -1 for failed fit')
 # plot dis2
 axes[idplot+2].plot(dt, dis2, label='Displacement^2', linestyle = '-')
 # axes[idplot+2].plot(dt, dis2_fit, label=hyb.format_SF_err(D, D_std) + 'um2/ns', linestyle='--')
-axes[idplot+2].plot(dt, dis2_fit, label = 'fit', linestyle='--')
+axes[idplot+2].plot(dt_tofit, dis2_fit, label = f'fit,D = {D:.2g} cm2/s', linestyle='--')
 
 axes[idplot+2].set_xlabel('Time (ns)')
 axes[idplot+2].set_ylabel('Displacement^2')
