@@ -64,7 +64,7 @@ def bin_rows_1D(data: np.ndarray, w: int) -> np.ndarray:
 
 #%% config
 ##### data params #####
-f_in = r"F:\OneDrive - purdue.edu\Data\Optical Spectra\PL\PL_image_test\token_data.dat"  # path to the .dat file. if None, will prompt user to select file
+f_in = None  # path to the .dat file. if None, will prompt user to select file
 t_step = 0.064  # time step in ns
 motor_step = 20 # motor step in um
 mag = 100  # microscopy magnification
