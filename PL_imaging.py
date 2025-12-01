@@ -322,6 +322,23 @@ fig.savefig(f"{dir_out}\\PL_imaging_fitparams_{formatted_date}.png", dpi=300)
 plt.close(fig)
 
 #%% save text
-pass
+# save normalized data
+dir_txtsave = f"{dir_out}\\txtdata"
+hyb.check_make_dir(dir_txtsave)
+hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\PL_imaging_data_normall_{formatted_date}.txt")
+hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\PL_imaging_data_norm_by_t_{formatted_date}.txt")
+hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\PL_imaging_xfit_data_{formatted_date}.txt")
+
+# save fit params        
+param_pd = pd.DataFrame(xfit_params, columns=xfit_param_names, index=dt)
+param_pd.index.name = "param_name"
+param_pd.to_csv(f"{dir_txtsave}\\PL_imaging_fit_params_{formatted_date}.csv", sep=',', index=True)
+
+std_pd = pd.DataFrame(xfit_stds, columns=[name + '_std' for name in xfit_param_names], index=dt)
+std_pd.index.name = "param_name"
+std_pd.to_csv(f"{dir_txtsave}\\PL_imaging_fit_params_std_{formatted_date}.csv", sep=',', index=True)
+
+combined_pd = pd.concat([param_pd, std_pd], axis=1)
+combined_pd.to_csv(f"{dir_txtsave}\\PL_imaging_fit_params_combined_{formatted_date}.csv", sep=',', index=True)
 #%% finish
 print("Job done!")
