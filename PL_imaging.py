@@ -254,12 +254,14 @@ dis2_r2 = dis2_fitter.r2
 #%% visualize
 # plot 2D map
 fig, axes = plt.subplots(1,3, figsize=(12,4), dpi=300)
-im0 = axes[0].imshow(data_normall, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
+data_normall_log = np.log10(data_normall)
+im0 = axes[0].imshow(data_normall_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
 axes[0].set_xlabel('x (um)')
 axes[0].set_ylabel('Time (ns)')
 cb0 = hyp.colorbar_magic(im0)
 
-img1 = axes[1].imshow(data_norm_t, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
+data_norm_t_log = np.log10(data_norm_t)
+img1 = axes[1].imshow(data_norm_t_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
 axes[1].set_xlabel('x (um)')
 axes[1].set_ylabel('Time (ns)')
 cb1 = hyp.colorbar_magic(img1)
@@ -320,6 +322,23 @@ fig.savefig(f"{dir_out}\\PL_imaging_fitparams_{formatted_date}.png", dpi=300)
 plt.close(fig)
 
 #%% save text
-pass
+# save normalized data
+dir_txtsave = f"{dir_out}\\txtdata"
+hyb.check_make_dir(dir_txtsave)
+hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\PL_imaging_data_normall_{formatted_date}.txt")
+hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\PL_imaging_data_norm_by_t_{formatted_date}.txt")
+hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\PL_imaging_xfit_data_{formatted_date}.txt")
+
+# save fit params        
+param_pd = pd.DataFrame(xfit_params, columns=xfit_param_names, index=dt)
+param_pd.index.name = "param_name"
+param_pd.to_csv(f"{dir_txtsave}\\PL_imaging_fit_params_{formatted_date}.csv", sep=',', index=True)
+
+std_pd = pd.DataFrame(xfit_stds, columns=[name + '_std' for name in xfit_param_names], index=dt)
+std_pd.index.name = "param_name"
+std_pd.to_csv(f"{dir_txtsave}\\PL_imaging_fit_params_std_{formatted_date}.csv", sep=',', index=True)
+
+combined_pd = pd.concat([param_pd, std_pd], axis=1)
+combined_pd.to_csv(f"{dir_txtsave}\\PL_imaging_fit_params_combined_{formatted_date}.csv", sep=',', index=True)
 #%% finish
 print("Job done!")
