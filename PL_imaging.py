@@ -65,13 +65,13 @@ def bin_rows_1D(data: np.ndarray, w: int) -> np.ndarray:
 #%% config
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
-t_step = 0.064  # time step in ns
-motor_step = 20 # motor step in um
-mag = 100  # microscopy magnification
+t_step = 0.016  # time step in ns
+motor_step = 10 # motor step in um
+mag = 180  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [0, 500]  # time range to analyze, in ns. If None, will use full range
-t_binning_width = 21 # time binning factor. If None, no binning.
+t_range = [-1, 10]  # time range to analyze, in ns. If None, will use full range
+t_binning_width = 5 # time binning factor. If None, no binning.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
 smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
