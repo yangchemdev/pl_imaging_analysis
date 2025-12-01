@@ -247,12 +247,14 @@ dis2_r2 = dis2_fitter.r2
 #%% visualize
 # plot 2D map
 fig, axes = plt.subplots(1,3, figsize=(12,4), dpi=300)
-im0 = axes[0].imshow(data_normall, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
+data_normall_log = np.log10(data_normall)
+im0 = axes[0].imshow(data_normall_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
 axes[0].set_xlabel('x (um)')
 axes[0].set_ylabel('Time (ns)')
 cb0 = hyp.colorbar_magic(im0)
 
-img1 = axes[1].imshow(data_norm_t, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
+data_norm_t_log = np.log10(data_norm_t)
+img1 = axes[1].imshow(data_norm_t_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
 axes[1].set_xlabel('x (um)')
 axes[1].set_ylabel('Time (ns)')
 cb1 = hyp.colorbar_magic(img1)
