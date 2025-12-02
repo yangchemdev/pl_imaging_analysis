@@ -65,17 +65,17 @@ def bin_rows_1D(data: np.ndarray, w: int) -> np.ndarray:
 #%% config
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
-t_step = 0.016  # time step in ns
+t_step = 0.008  # time step in ns
 motor_step = 10 # motor step in um
 mag = 180  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [-1, 10]  # time range to analyze, in ns. If None, will use full range
-t_binning_width = 5 # time binning factor. If None, no binning.
+t_range = [-0.5, 8]  # time range to analyze, in ns. If None, will use full range
+t_binning_width = 9 # time binning factor. If None, no binning.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
 smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
-t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 100]), trig_non_negative=True)  # model to fit time profile. Currently only supports exp decay
+t_fit_model = hyf.exp_ne_wrapper(1, np.array([1]), trig_non_negative=True)  # model to fit time profile. Currently only supports exp decay
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
 displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ##### visualize params #####
@@ -93,7 +93,7 @@ dir_in, name, _ = hyb.get_file_name_from_dir(f_in)
 todaydate = datetime.today()
 formatted_date = todaydate.strftime('%y%m%d')
 # set output dir
-dir_out = hyb.check_make_dir(f"{dir_in}\\output_{formatted_date}", auto_rename=True)
+dir_out = hyb.check_make_dir(f"{dir_in}\\{name}_output_{formatted_date}", auto_rename=True)
 
 # make config class
 params_data = hyconfig.code_section([
@@ -153,13 +153,13 @@ dt = t - t0
 
 # debg
 # use intensity before t0 as background. 5 ns buffer before t0
-bg_mask = dt < -5   # NOTE: the buffer is subject to change
+bg_mask = dt < -1   # NOTE: the buffer is subject to change
 if not np.any(bg_mask):
     raise ValueError(f"No time points found for background (dt < -5). "
                      f"Min dt = {dt.min():.3f}")
 bg = np.median(data[bg_mask, :], axis=0)
 data = data - bg[np.newaxis, :]
-data[data <= 0] = 1e-3  # set non-positive values to epsilon
+data[data <= 0] = 0.1  # set non-positive values to epsilon
 
 # cut
 if x_range is not None:
@@ -207,7 +207,7 @@ xfit_r2 = np.zeros(nt)
 xfit_status = np.zeros(nt)
 # fit
 for idt in tqdm(range(nt)):
-    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, dx, data[idt, :], lb=np.array([0, -np.inf, 0, 0]), hb=np.array([np.inf, np.inf, np.inf, np.inf]))
+    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, dx, data[idt, :], lb=np.array([0, -0.2, 0.1, 0]), hb=np.array([np.inf, 0.2, 1, np.inf]))
     x_fitter.fit()
     xfit_params[idt, :] = x_fitter.params['value']
     xfit_stds[idt, :] = x_fitter.params['std']
