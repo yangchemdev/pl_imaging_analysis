@@ -97,8 +97,8 @@ motor_step = 5 # motor step in um
 mag = 180  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [-0.1, 20]  # time range to analyze, in ns. If None, will use full range
-t_binning_width = 9 # time binning factor. If None, no binning.
+t_range = [-0.1, 8]  # time range to analyze, in ns. If None, will use full range
+t_binning_width = 11 # time binning factor. If None, no binning.
 fold_row = 1200   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
 smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
@@ -108,6 +108,7 @@ trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting init
 displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
+representative_t = [0, 1, 3]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 
@@ -135,6 +136,7 @@ params_process = hyconfig.code_section([
     ("x_range", x_range),   # spatial range to analyze, in um. If None, will use full range
     ("t_range", t_range),  # time range to analyze, in ns. If None, will use full range
     ("t_binning_width", t_binning_width), # time binning factor. If None, no binning.
+    ('fold_row', fold_row),
     ("smooth_x", smooth_x),  # smoothing boxcar in x direction, no unit. If None, no smoothing
     ("smooth_t", smooth_t),  # smoothing boxcar in t direction, no unit. If None, no smoothing
     ("x_fit_model", x_fit_model.funcname),  # model to fit spatial profile
@@ -143,7 +145,8 @@ params_process = hyconfig.code_section([
     ("displacement_source", displacement_source) # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ])
 params_visualize = hyconfig.code_section([
-    # to be implemented
+    ("param_units", param_units),
+    ("representative_t", representative_t)
 ])
 params_output = hyconfig.code_section([
     ("dir_out", dir_out)  # path to save output files. If None, will use input file directory
@@ -281,7 +284,8 @@ dis2_tofit = dis2[valid_mask]
 dt_tofit = dt[valid_mask]
 # make fitter
 dis2_fitter = hyf.fitter_1D('D_fit', hyf.func_class_linear, dt_tofit, dis2_tofit)
-dis2_fitter.fit()
+if displacement_source == 'fit':
+    dis2_fitter.fit(sigma = 4 * xfit_stds[:, idx_w] * xfit_params[:, idx_w])    # uncertainty transfer
 D = dis2_fitter.params['value'][0] / 4  # diffusion coefficient in 2D, unit in um2/ns
 D = D * 10  # convert to cm2/s
 D_std = dis2_fitter.params['std'][0] / 4
@@ -291,30 +295,43 @@ dis2_residual = dis2_fitter.residue
 dis2_r2 = dis2_fitter.r2
 
 #%% visualize
-# plot 2D map
-fig, axes = plt.subplots(1,3, figsize=(12,4), dpi=300)
+# plot raw data
+fig, axes = plt.subplots(2,2, figsize=(8,6), dpi=300)
+axes = axes.flatten()
+# normalized data
 data_normall_log = np.log10(data_normall)
-im0 = axes[0].imshow(data_normall_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
+im0 = axes[0].imshow(data_normall_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis', origin = 'lower')
 axes[0].set_xlabel('x (um)')
 axes[0].set_ylabel('Time (ns)')
 cb0 = hyp.colorbar_magic(im0)
 
+# t-normalized data
 data_norm_t_log = np.log10(data_norm_t)
-img1 = axes[1].imshow(data_norm_t_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis')
+img1 = axes[1].imshow(data_norm_t_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis', origin = 'lower')
 axes[1].set_xlabel('x (um)')
 axes[1].set_ylabel('Time (ns)')
 cb1 = hyp.colorbar_magic(img1)
 
+# spatial-averaged trpl 
 plot_raw = axes[2].semilogy(dt, data_xavg, label='spatial averaged data')
 plot_fitted = axes[2].semilogy(dt, tfit_data, label='fit', linestyle='--')
 axes[2].set_xlabel('Time (ns)')
 axes[2].set_ylabel('Intensity (a.u.)')
 
+# representative spatial
+plot_x = []
+for idtplot, tplot in enumerate(representative_t):
+    idt = hyb.numpy_nearest(dt, tplot, 'idx')
+    plot_x.append(axes[3].plot(dx, data_norm_t[idt, :], label = f'{tplot:.2f} ns', alpha = 0.75))
+axes[3].set_xlabel('x (um)')
+axes[3].set_ylabel('Intensity (a.u.)')
+axes[3].legend()
 
 fig.suptitle(f'PL imaging raw data\n{name}')
 axes[0].set_title('Normalized to global max')
 axes[1].set_title('Normalized to each time frame')
 axes[2].set_title('Spatially averaged data and fit')
+axes[3].set_title('Representative spatial distribution')
 
 plt.tight_layout()
 fig.savefig(f"{dir_out}\\PL_imaging_raw_{formatted_date}.png", dpi=300)
