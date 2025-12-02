@@ -27,6 +27,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm as tqdm
+import matplotlib   # debug
 
 #%% define
 def first_with_w_idx(strings):
@@ -61,17 +62,44 @@ def bin_rows_1D(data: np.ndarray, w: int) -> np.ndarray:
     # reshape to (K, w) then average along axis 1
     return trimmed.reshape(K, w).mean(axis=1)
 
+def fold_trpl(data: np.ndarray, row0: int) -> np.ndarray:
+    '''
+    fold numpy array    
+    '''
+    if row0 < 0:
+        raise ValueError("row0 must be non-negative")
+    if row0 >= data.shape[0]:
+        raise ValueError("row0 must be smaller than data size")
+    if data.ndim == 2:
+        return np.vstack((data[row0:], data[:row0]))
+    elif data.ndim == 1:
+        return np.concatenate((data[row0:], data[:row0]))
+    else:
+        raise ValueError("data must be 1D or 2D")
+    
+def last_nonzero_row_idx(data):
+    if data.ndim != 2:
+        raise ValueError("Input must be 2D.")
+
+    # Boolean mask: True if row has any non-zero element
+    mask = np.any(data != 0, axis=1)
+
+    # Find indices where mask is True
+    idx = np.where(mask)[0]
+
+    return idx[-1] if idx.size > 0 else None   # None means all-zero matrix
 
 #%% config
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
 t_step = 0.008  # time step in ns
-motor_step = 10 # motor step in um
+motor_step = 5 # motor step in um
 mag = 180  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [-0.5, 8]  # time range to analyze, in ns. If None, will use full range
+t_range = [-0.1, 20]  # time range to analyze, in ns. If None, will use full range
 t_binning_width = 9 # time binning factor. If None, no binning.
+fold_row = 1200   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
 smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
@@ -126,11 +154,19 @@ params.to_json(f"{params_output.dir_out}\\config_files_{formatted_date}.json")
 params.to_pickle(f"{params_output.dir_out}\\config_files_{formatted_date}.pkl")
 #%% load
 data = np.loadtxt(params_data.f_in, delimiter="\t") # I need to check the delimiter
+# delete trailing 0s
+data = data[:last_nonzero_row_idx(data)+1]
+
 nt = data.shape[0]
 nx = data.shape[1]
+
 t = np.arange(nt) * params_data.t_step
 x_step = params_data.motor_step / params_data.mag  # in um
 x = np.arange(nx) * x_step  # in um
+# fold
+if fold_row is not None:
+    data = fold_trpl(data, fold_row)
+    t = np.arange(nt) * params_data.t_step
 
 # t binning
 if t_binning_width is not None:
@@ -146,6 +182,7 @@ data_xavg = np.mean(data, axis = 1)     # average over space. Now only have t ax
 # find center
 x0 = x[hyb.numpy_nearest(data_tavg, np.max(data_tavg), 'id')]
 t0 = t[hyb.numpy_nearest(data_xavg, np.max(data_xavg), 'id')]
+print(f"t0 is at {t0} ns, or {np.round(t0/params_data.t_step)} row")
 
 # find net x and net t
 dx = x - x0
@@ -153,11 +190,11 @@ dt = t - t0
 
 # debg
 # use intensity before t0 as background. 5 ns buffer before t0
-bg_mask = dt < -1   # NOTE: the buffer is subject to change
+bg_mask = dt < -2   # NOTE: the buffer is subject to change
 if not np.any(bg_mask):
     raise ValueError(f"No time points found for background (dt < -5). "
                      f"Min dt = {dt.min():.3f}")
-bg = np.median(data[bg_mask, :], axis=0)
+bg = np.percentile(data[bg_mask, :], 45, axis=0)
 data = data - bg[np.newaxis, :]
 data[data <= 0] = 0.1  # set non-positive values to epsilon
 
@@ -175,6 +212,8 @@ if t_range is not None:
     t = t[t_mask]
     nt = t.shape[0]
     data = data[t_mask, :]
+
+print(f"New t is {dt[0]} to {dt[-1]}")  # debug only
 
 # smooth
 pass  # TODO: to be implemented
