@@ -285,7 +285,12 @@ dt_tofit = dt[valid_mask]
 # make fitter
 dis2_fitter = hyf.fitter_1D('D_fit', hyf.func_class_linear, dt_tofit, dis2_tofit)
 # make sigma for nan and other illegal value
-sigma_baseline = 
+if displacement_source == 'fit':
+    dis2_sigma = np.abs(xfit_data[:, idx_w]) * xfit_stds[:, idx_w] * 4    # use error propagation to estimate sigma of dis2
+    dis2_sigma[np.isnan(dis2_sigma)] = np.nanmax(dis2_sigma)  # rough estimate of noise level
+elif displacement_source == 'MSD':
+    dis2_sigma = 1 / np.abs(data_xavg)  # rough estimate of noise level
+# catch invalid sigma values
 # if displacement_source == 'fit':  # TODO: add sigma
 dis2_fitter.fit()    
 D = dis2_fitter.params['value'][0] / 4  # diffusion coefficient in 2D, unit in um2/ns
