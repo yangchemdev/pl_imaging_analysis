@@ -97,7 +97,7 @@ motor_step = 5 # motor step in um
 mag = 180  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [0, 900]  # time range to analyze, in ns. If None, will use full range
+t_range = [0, 400]  # time range to analyze, in ns. If None, will use full range
 t_binning_width = 31 # time binning factor. If None, no binning.
 fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
@@ -108,7 +108,7 @@ trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting init
 displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 10, 100, 500]     # representative frames to be plotted.
+representative_t = [0, 10, 100, 200]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 
