@@ -93,13 +93,13 @@ def last_nonzero_row_idx(data):
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
 t_step = 0.008  # time step in ns
-motor_step = 5 # motor step in um
+motor_step = 7 # motor step in um
 mag = 180  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [-0.1, 8]  # time range to analyze, in ns. If None, will use full range
-t_binning_width = 11 # time binning factor. If None, no binning.
-fold_row = 1200   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
+t_range = [-1, 480]  # time range to analyze, in ns. If None, will use full range
+t_binning_width = 151 # time binning factor. If None, no binning.
+fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
 smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
@@ -108,7 +108,7 @@ trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting init
 displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 1, 3]     # representative frames to be plotted.
+representative_t = [0, 10, 100, 1000]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 
@@ -300,14 +300,14 @@ fig, axes = plt.subplots(2,2, figsize=(8,6), dpi=300)
 axes = axes.flatten()
 # normalized data
 data_normall_log = np.log10(data_normall)
-im0 = axes[0].imshow(data_normall_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis', origin = 'lower')
+im0 = axes[0].imshow(data_normall_log, extent=[dx[0], dx[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
 axes[0].set_xlabel('x (um)')
 axes[0].set_ylabel('Time (ns)')
 cb0 = hyp.colorbar_magic(im0)
 
 # t-normalized data
 data_norm_t_log = np.log10(data_norm_t)
-img1 = axes[1].imshow(data_norm_t_log, extent=[dx[0], dx[-1], dt[-1], dt[0]], aspect='auto', cmap='viridis', origin = 'lower')
+img1 = axes[1].imshow(data_norm_t_log, extent=[dx[0], dx[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
 axes[1].set_xlabel('x (um)')
 axes[1].set_ylabel('Time (ns)')
 cb1 = hyp.colorbar_magic(img1)
