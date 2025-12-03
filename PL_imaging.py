@@ -92,21 +92,21 @@ def last_nonzero_row_idx(data):
 #%% config
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
-t_step = 0.008  # time step in ns
-motor_step = 5 # motor step in um
-mag = 180  # microscopy magnification
+t_step = 0.016  # time step in ns
+motor_step = 8 # motor step in um
+mag = 181  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [0, 16]  # time range to analyze, in ns. If None, will use full range
+t_range = [0, 100]  # time range to analyze, in ns. If None, will use full range
 t_binning_width = 31 # time binning factor. If None, no binning.
 fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
-t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 50]), trig_non_negative=True)  # model to fit time profile. Currently only supports exp decay
+t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 50]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
-displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+displacement_source = 'MSD' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 10, 100, 200]     # representative frames to be plotted.
+representative_t = [0, 10, 100]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 
@@ -245,7 +245,7 @@ xfit_r2 = np.zeros(nt)
 xfit_status = np.zeros(nt)
 # fit
 for idt in tqdm(range(nt)):
-    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, dx, data[idt, :], lb=np.array([0, -0.2, 0.1, 0]), hb=np.array([np.inf, 0.2, 1, np.inf]))
+    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, dx, data[idt, :], lb=np.array([0, -0.2, 0.1, -np.inf]), hb=np.array([np.inf, 0.2, 1, np.inf]))
     x_fitter.fit()
     xfit_params[idt, :] = x_fitter.params['value']
     xfit_stds[idt, :] = x_fitter.params['std']
@@ -281,12 +281,13 @@ dt_tofit = dt[valid_mask]
 # make fitter
 dis2_fitter = hyf.fitter_1D('D_fit', hyf.func_class_linear, dt_tofit, dis2_tofit)
 # make sigma for nan and other illegal value
-if displacement_source == 'fit':
-    dis2_sigma = np.abs(xfit_data[:, idx_w]) * xfit_stds[:, idx_w] * 4    # use error propagation to estimate sigma of dis2
-    dis2_sigma[np.isnan(dis2_sigma)] = np.nanmax(dis2_sigma)  # rough estimate of noise level
-elif displacement_source == 'MSD':
-    dis2_sigma = 1 / np.abs(data_xavg)  # rough estimate of noise level
-dis2_fitter.fit(sigma=dis2_sigma)    
+# if displacement_source == 'fit':
+#     dis2_sigma = np.abs(xfit_data[:, idx_w]) * xfit_stds[:, idx_w] * 4    # use error propagation to estimate sigma of dis2
+#     dis2_sigma[np.isnan(dis2_sigma)] = np.nanmax(dis2_sigma)  # rough estimate of noise level
+# elif displacement_source == 'MSD':
+#     dis2_sigma = 1 / np.abs(data_xavg)  # rough estimate of noise level
+# dis2_fitter.fit(sigma=dis2_sigma)   
+dis2_fitter.fit() 
 D = dis2_fitter.params['value'][0] / 4  # diffusion coefficient in 2D, unit in um2/ns
 D = D * 10  # convert to cm2/s
 D_std = dis2_fitter.params['std'][0] / 4
@@ -318,6 +319,10 @@ plot_raw = axes[2].semilogy(dt, data_xavg, label='spatial averaged data')
 plot_fitted = axes[2].semilogy(dt, tfit_data, label='fit', linestyle='--')
 axes[2].set_xlabel('Time (ns)')
 axes[2].set_ylabel('Intensity (a.u.)')
+# get phenmonlogical lifetime form 1/e
+lifetime_1e = dt[hyb.numpy_nearest(data_xavg, np.max(data_xavg)/np.e, 'idx')]
+axes[2].axvline(lifetime_1e, color='gray', linestyle=':', label=f'1/e lifetime: {lifetime_1e:.2f} ns')
+axes[2].legend()
 
 # representative spatial
 plot_x = []
@@ -389,6 +394,10 @@ hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\PL_imaging_xfit_dat
 # save spatial averaged trpl
 out_pd = pd.DataFrame({'Time (ns)': dt, 'Intensity (a.u.)': data_xavg})
 out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_spatial_avg_trpl_{formatted_date}.csv", sep=',')
+
+# save spatial averaged fit
+out_pd = t_fitter.params
+out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_spatial_avg_trpl_fit_params_{formatted_date}.csv", sep=',')
 
 # save temporal averaged data
 out_pd = pd.DataFrame({'Position (um)': dx, 'Intensity (a.u.)': data_tavg})
