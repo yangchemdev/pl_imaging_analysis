@@ -101,7 +101,7 @@ t_range = [0, 16]  # time range to analyze, in ns. If None, will use full range
 t_binning_width = 31 # time binning factor. If None, no binning.
 fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
-t_fit_model = hyf.exp_ne_wrapper(1, np.array([1]), trig_non_negative=True)  # model to fit time profile. Currently only supports exp decay
+t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 50]), trig_non_negative=True)  # model to fit time profile. Currently only supports exp decay
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
 displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ##### visualize params #####
