@@ -390,6 +390,14 @@ hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\PL_imaging_data_
 hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\PL_imaging_data_norm_by_t_{formatted_date}.txt")
 hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\PL_imaging_xfit_data_{formatted_date}.txt")
 
+# save spatial averaged trpl
+out_pd = pd.DataFrame({'Time (ns)': dt, 'Intensity (a.u.)': data_xavg})
+out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_spatial_avg_trpl_{formatted_date}.csv", sep=',')
+
+# save temporal averaged data
+out_pd = pd.DataFrame({'Position (um)': dx, 'Intensity (a.u.)': data_tavg})
+out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_temporal_avg_profile_{formatted_date}.csv", sep=',')
+
 # save fit params        
 param_pd = pd.DataFrame(xfit_params, columns=xfit_param_names, index=dt)
 param_pd.index.name = "param_name"
