@@ -92,13 +92,13 @@ def last_nonzero_row_idx(data):
 #%% config
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
-t_step = 0.008  # time step in ns
-motor_step = 7 # motor step in um
+t_step = 0.016  # time step in ns
+motor_step = 5 # motor step in um
 mag = 180  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [-1, 480]  # time range to analyze, in ns. If None, will use full range
-t_binning_width = 151 # time binning factor. If None, no binning.
+t_range = [0, 900]  # time range to analyze, in ns. If None, will use full range
+t_binning_width = 31 # time binning factor. If None, no binning.
 fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
 smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
@@ -108,7 +108,7 @@ trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting init
 displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 10, 100, 1000]     # representative frames to be plotted.
+representative_t = [0, 10, 100, 500]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 
@@ -284,8 +284,8 @@ dis2_tofit = dis2[valid_mask]
 dt_tofit = dt[valid_mask]
 # make fitter
 dis2_fitter = hyf.fitter_1D('D_fit', hyf.func_class_linear, dt_tofit, dis2_tofit)
-if displacement_source == 'fit':
-    dis2_fitter.fit(sigma = 4 * xfit_stds[:, idx_w] * xfit_params[:, idx_w])    # uncertainty transfer
+# if displacement_source == 'fit':  # TODO: add sigma
+dis2_fitter.fit()    
 D = dis2_fitter.params['value'][0] / 4  # diffusion coefficient in 2D, unit in um2/ns
 D = D * 10  # convert to cm2/s
 D_std = dis2_fitter.params['std'][0] / 4
@@ -299,15 +299,15 @@ dis2_r2 = dis2_fitter.r2
 fig, axes = plt.subplots(2,2, figsize=(8,6), dpi=300)
 axes = axes.flatten()
 # normalized data
-data_normall_log = np.log10(data_normall)
-im0 = axes[0].imshow(data_normall_log, extent=[dx[0], dx[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
+# data_normall_log = np.log10(data_normall)
+im0 = axes[0].imshow(data_normall, extent=[dx[0], dx[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
 axes[0].set_xlabel('x (um)')
 axes[0].set_ylabel('Time (ns)')
 cb0 = hyp.colorbar_magic(im0)
 
 # t-normalized data
-data_norm_t_log = np.log10(data_norm_t)
-img1 = axes[1].imshow(data_norm_t_log, extent=[dx[0], dx[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
+# data_norm_t_log = np.log10(data_norm_t)
+img1 = axes[1].imshow(data_norm_t, extent=[dx[0], dx[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
 axes[1].set_xlabel('x (um)')
 axes[1].set_ylabel('Time (ns)')
 cb1 = hyp.colorbar_magic(img1)
@@ -322,7 +322,7 @@ axes[2].set_ylabel('Intensity (a.u.)')
 plot_x = []
 for idtplot, tplot in enumerate(representative_t):
     idt = hyb.numpy_nearest(dt, tplot, 'idx')
-    plot_x.append(axes[3].plot(dx, data_norm_t[idt, :], label = f'{tplot:.2f} ns', alpha = 0.75))
+    plot_x.append(axes[3].plot(dx, data_norm_t[idt, :], label = f'{dt[idt]:.2f} ns', alpha = 0.75))
 axes[3].set_xlabel('x (um)')
 axes[3].set_ylabel('Intensity (a.u.)')
 axes[3].legend()
