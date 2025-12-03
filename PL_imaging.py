@@ -92,16 +92,14 @@ def last_nonzero_row_idx(data):
 #%% config
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
-t_step = 0.016  # time step in ns
+t_step = 0.008  # time step in ns
 motor_step = 5 # motor step in um
 mag = 180  # microscopy magnification
 ##### process params #####
 x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [0, 400]  # time range to analyze, in ns. If None, will use full range
+t_range = [0, 16]  # time range to analyze, in ns. If None, will use full range
 t_binning_width = 31 # time binning factor. If None, no binning.
 fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
-smooth_x = None  # smoothing boxcar in x direction, no unit. If None, no smoothing
-smooth_t = None  # smoothing boxcar in t direction, no unit. If None, no smoothing
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
 t_fit_model = hyf.exp_ne_wrapper(1, np.array([1]), trig_non_negative=True)  # model to fit time profile. Currently only supports exp decay
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
@@ -137,8 +135,6 @@ params_process = hyconfig.code_section([
     ("t_range", t_range),  # time range to analyze, in ns. If None, will use full range
     ("t_binning_width", t_binning_width), # time binning factor. If None, no binning.
     ('fold_row', fold_row),
-    ("smooth_x", smooth_x),  # smoothing boxcar in x direction, no unit. If None, no smoothing
-    ("smooth_t", smooth_t),  # smoothing boxcar in t direction, no unit. If None, no smoothing
     ("x_fit_model", x_fit_model.funcname),  # model to fit spatial profile
     ("t_fit_model", t_fit_model.funcname),  # model to fit time profile. Currently only supports exp decay
     ("trig_MSD_rezero", trig_MSD_rezero), # whether to re-zero MSD calculation by subtracting initial MSD value
