@@ -284,6 +284,8 @@ dis2_tofit = dis2[valid_mask]
 dt_tofit = dt[valid_mask]
 # make fitter
 dis2_fitter = hyf.fitter_1D('D_fit', hyf.func_class_linear, dt_tofit, dis2_tofit)
+# make sigma for nan and other illegal value
+sigma_baseline = 
 # if displacement_source == 'fit':  # TODO: add sigma
 dis2_fitter.fit()    
 D = dis2_fitter.params['value'][0] / 4  # diffusion coefficient in 2D, unit in um2/ns
