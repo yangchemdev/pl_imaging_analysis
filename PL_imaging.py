@@ -290,9 +290,7 @@ if displacement_source == 'fit':
     dis2_sigma[np.isnan(dis2_sigma)] = np.nanmax(dis2_sigma)  # rough estimate of noise level
 elif displacement_source == 'MSD':
     dis2_sigma = 1 / np.abs(data_xavg)  # rough estimate of noise level
-# catch invalid sigma values
-# if displacement_source == 'fit':  # TODO: add sigma
-dis2_fitter.fit()    
+dis2_fitter.fit(sigma=dis2_sigma)    
 D = dis2_fitter.params['value'][0] / 4  # diffusion coefficient in 2D, unit in um2/ns
 D = D * 10  # convert to cm2/s
 D_std = dis2_fitter.params['std'][0] / 4
@@ -329,7 +327,7 @@ axes[2].set_ylabel('Intensity (a.u.)')
 plot_x = []
 for idtplot, tplot in enumerate(representative_t):
     idt = hyb.numpy_nearest(dt, tplot, 'idx')
-    plot_x.append(axes[3].plot(dx, data_norm_t[idt, :], label = f'{dt[idt]:.2f} ns', alpha = 0.75))
+    plot_x.append(axes[3].plot(dx, data_norm_t[idt, :], label = f'{dt[idt]:.2f} ns', alpha = 0.5)[0])
 axes[3].set_xlabel('x (um)')
 axes[3].set_ylabel('Intensity (a.u.)')
 axes[3].legend()
