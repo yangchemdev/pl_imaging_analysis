@@ -93,23 +93,26 @@ def last_nonzero_row_idx(data):
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
 t_step = 0.016  # time step in ns
-motor_step = 8 # motor step in um
-mag = 181  # microscopy magnification
+motor_step = 7 # motor step in um
+mag = 182  # microscopy magnification
 ##### process params #####
-x_range = [-1.5, 1.5]   # spatial range to analyze, in um. If None, will use full range
-t_range = [0, 100]  # time range to analyze, in ns. If None, will use full range
-t_binning_width = 31 # time binning factor. If None, no binning.
-fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
+x_range = None   # spatial range to analyze, in um. If None, will use full range
+t_range = [0, 600]  # time range to analyze, in ns. If None, will use full range
+t0_buffer = -1  # buffer before t0 to calculate background, in ns. Used when subtracting background
+t_binning_width = 64 # time binning factor. If None, no binning.
+fold_row = 100   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
-t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 50]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
+t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 5]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
-displacement_source = 'MSD' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+sigma_correction = True # whether to apply sigma correction in D fitting
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 10, 100]     # representative frames to be plotted.
+representative_t = [0, 5, 20, 200]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
-
+overwrite_mode = True # whether to overwrite existing output files
+##### END OF CONFIG #####
 if f_in is None:
     f_in = hyb.GUI_qt_get_file("Select PL imaging .dat file", False, remember=True)
     f_in = f_in[0]
@@ -120,7 +123,7 @@ dir_in, name, _ = hyb.get_file_name_from_dir(f_in)
 todaydate = datetime.today()
 formatted_date = todaydate.strftime('%y%m%d')
 # set output dir
-dir_out = hyb.check_make_dir(f"{dir_in}\\{name}_output_{formatted_date}", auto_rename=True)
+dir_out = hyb.check_make_dir(f"{dir_in}\\{name}_output_{formatted_date}", auto_rename = not overwrite_mode)
 
 # make config class
 params_data = hyconfig.code_section([
@@ -133,19 +136,22 @@ params_data = hyconfig.code_section([
 params_process = hyconfig.code_section([
     ("x_range", x_range),   # spatial range to analyze, in um. If None, will use full range
     ("t_range", t_range),  # time range to analyze, in ns. If None, will use full range
+    ("t0_buffer", t0_buffer),   # buffer before t0 to calculate background, in ns. Used when subtracting background
     ("t_binning_width", t_binning_width), # time binning factor. If None, no binning.
     ('fold_row', fold_row),
     ("x_fit_model", x_fit_model.funcname),  # model to fit spatial profile
     ("t_fit_model", t_fit_model.funcname),  # model to fit time profile. Currently only supports exp decay
     ("trig_MSD_rezero", trig_MSD_rezero), # whether to re-zero MSD calculation by subtracting initial MSD value
-    ("displacement_source", displacement_source) # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+    ("displacement_source", displacement_source), # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+    ('sigma_correction', sigma_correction) # whether to apply sigma correction in D fitting
 ])
 params_visualize = hyconfig.code_section([
     ("param_units", param_units),
     ("representative_t", representative_t)
 ])
 params_output = hyconfig.code_section([
-    ("dir_out", dir_out)  # path to save output files. If None, will use input file directory
+    ("dir_out", dir_out),  # path to save output files. If None, will use input file directory
+    ("overwrite_mode", overwrite_mode) # whether to overwrite existing output files
 ])
 
 params = hyconfig.config_class([params_data, params_process, params_visualize, params_output])
@@ -189,7 +195,7 @@ dt = t - t0
 
 # debg
 # use intensity before t0 as background. 5 ns buffer before t0
-bg_mask = dt < -2   # NOTE: the buffer is subject to change
+bg_mask = dt < t0_buffer   # NOTE: the buffer is subject to change
 if not np.any(bg_mask):
     raise ValueError(f"No time points found for background (dt < -5). "
                      f"Min dt = {dt.min():.3f}")
@@ -245,7 +251,7 @@ xfit_r2 = np.zeros(nt)
 xfit_status = np.zeros(nt)
 # fit
 for idt in tqdm(range(nt)):
-    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, dx, data[idt, :], lb=np.array([0, -0.2, 0.1, -np.inf]), hb=np.array([np.inf, 0.2, 1, np.inf]))
+    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, dx, data[idt, :], lb=np.array([0, -0.2, 0.1, -np.inf]), hb=np.array([np.inf, 0.2, 0.6, np.inf]))
     x_fitter.fit()
     xfit_params[idt, :] = x_fitter.params['value']
     xfit_stds[idt, :] = x_fitter.params['std']
@@ -278,16 +284,27 @@ else:
 valid_mask = ~np.isnan(dis2)
 dis2_tofit = dis2[valid_mask]
 dt_tofit = dt[valid_mask]
+
 # make fitter
 dis2_fitter = hyf.fitter_1D('D_fit', hyf.func_class_linear, dt_tofit, dis2_tofit)
 # make sigma for nan and other illegal value
-# if displacement_source == 'fit':
-#     dis2_sigma = np.abs(xfit_data[:, idx_w]) * xfit_stds[:, idx_w] * 4    # use error propagation to estimate sigma of dis2
-#     dis2_sigma[np.isnan(dis2_sigma)] = np.nanmax(dis2_sigma)  # rough estimate of noise level
-# elif displacement_source == 'MSD':
-#     dis2_sigma = 1 / np.abs(data_xavg)  # rough estimate of noise level
-# dis2_fitter.fit(sigma=dis2_sigma)   
-dis2_fitter.fit() 
+if sigma_correction is True:
+    if displacement_source == 'fit':
+        # dis2_sigma = np.abs(xfit_data[:, idx_w]) * xfit_stds[:, idx_w] * 4    # old
+        dis2_sigma = np.abs(4 * xfit_params[:, idx_w]) * xfit_stds[:, idx_w]    # new error prop
+        dis2_sigma = dis2_sigma[valid_mask]
+    elif displacement_source == 'MSD':
+        dis2_sigma = 1 / np.abs(data_xavg)  # rough estimate of noise level
+        dis2_sigma = dis2_sigma[valid_mask]
+    # reduce very small sigma. 0.1~1 ns usually fit well, so I will set 25% of that as floor 
+    t0id0 = hyb.numpy_nearest(dt_tofit, 0.1, 'idx',direction=1)
+    t1id0 = hyb.numpy_nearest(dt_tofit, 1, 'idx', direction=1)
+    dis2_sigma_floor = np.median(dis2_sigma[t0id0:t1id0]) * 0.5  # set floor to 25% of median of early sections
+    dis2_sigma += dis2_sigma_floor  # add floor
+else:
+    dis2_sigma = np.ones_like(dis2_tofit) * np.mean(dis2_tofit) * 0.1  # same weight, normalized to average value so that it is easy to plot together with dis2
+dis2_fitter.fit(sigma=dis2_sigma)   
+# dis2_fitter.fit() 
 D = dis2_fitter.params['value'][0] / 4  # diffusion coefficient in 2D, unit in um2/ns
 D = D * 10  # convert to cm2/s
 D_std = dis2_fitter.params['std'][0] / 4
@@ -297,8 +314,9 @@ dis2_residual = dis2_fitter.residue
 dis2_r2 = dis2_fitter.r2
 
 #%% visualize
+matplotlib.rcParams['font.size'] = 7   # size too large... HACK: global setting.
 # plot raw data
-fig, axes = plt.subplots(2,2, figsize=(8,6), dpi=300)
+fig, axes = plt.subplots(2,2, figsize=(6, 5), dpi=300)
 axes = axes.flatten()
 # normalized data
 # data_normall_log = np.log10(data_normall)
@@ -322,7 +340,7 @@ axes[2].set_ylabel('Intensity (a.u.)')
 # get phenmonlogical lifetime form 1/e
 lifetime_1e = dt[hyb.numpy_nearest(data_xavg, np.max(data_xavg)/np.e, 'idx')]
 axes[2].axvline(lifetime_1e, color='gray', linestyle=':', label=f'1/e lifetime: {lifetime_1e:.2f} ns')
-axes[2].legend()
+axes[2].legend(fontsize = 8)
 
 # representative spatial
 plot_x = []
@@ -331,7 +349,7 @@ for idtplot, tplot in enumerate(representative_t):
     plot_x.append(axes[3].plot(dx, data_norm_t[idt, :], label = f'{dt[idt]:.2f} ns', alpha = 0.5)[0])
 axes[3].set_xlabel('x (um)')
 axes[3].set_ylabel('Intensity (a.u.)')
-axes[3].legend()
+axes[3].legend(fontsize = 8)
 
 fig.suptitle(f'PL imaging raw data\n{name}')
 axes[0].set_title('Normalized to global max')
@@ -349,35 +367,51 @@ n_params_to_draw = n_xfit_params+2  # plus one for R2 and D2
 n_cols = int(np.ceil(np.sqrt(n_params_to_draw)))
 n_rows = int(np.ceil(n_params_to_draw / n_cols))
 # make figure
-fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*4, n_rows*3), dpi=300)
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(n_cols*2.3, n_rows*2.3), dpi=300)
 axes = axes.flatten()
 fig.suptitle(f'PL  parameters over time\n{name}')
 # plot fitting params
+# get palattes
+color_palatte = plt.cm.Dark2.colors
+
 for idplot in range(n_xfit_params):
-    axes[idplot].plot(dt, xfit_params[:, idplot], label=f'Param {idplot}', linewidth=2)
+    axes[idplot].plot(dt, xfit_params[:, idplot], label=f'Param {idplot}', linewidth = 1.5, color = color_palatte[idplot % len(color_palatte)],zorder=2)
+    # axes[idplot].scatter(dt, xfit_params[:, idplot], label=f'Param {idplot}', s = 8, edgecolor = color_palatte[idplot % len(color_palatte)], facecolors = (1,1,1),zorder=3)
     ylim = axes[idplot].get_ylim()  # freeze current ylim
     lower_bound = xfit_params[:, idplot] - xfit_stds[:, idplot]
     upper_bound = xfit_params[:, idplot] + xfit_stds[:, idplot]
-    axes[idplot].fill_between(dt, lower_bound, upper_bound, alpha=0.3)
-    axes[idplot].set_title(f'Fitted parameter {xfit_param_names[idplot]}')
+    axes[idplot].fill_between(dt, lower_bound, upper_bound, color = color_palatte[idplot % len(color_palatte)], alpha=0.3)
+    axes[idplot].set_title(f'{xfit_param_names[idplot]}')
     axes[idplot].set_xlabel('Time (ns)')
     axes[idplot].set_ylabel(f'{xfit_param_names[idplot]} ({param_units[idplot]})')
     axes[idplot].set_ylim(ylim)         # reapply ylim
 #plot r2
 xfit_r2[xfit_status != 1] = -1  # set R2 to -1 if fit failed
-axes[idplot+1].plot(dt, xfit_r2, label='R2', color='orange', linewidth=2)
+axes[idplot+1].plot(dt, xfit_r2, label='R2', color='orange', linewidth=1)
 axes[idplot+1].set_xlabel('Time (ns)')
 axes[idplot+1].set_ylabel('r2')
 axes[idplot+1].set_title('Fitting R2. -1 for failed fit')
 # plot dis2
-axes[idplot+2].plot(dt, dis2, label='Displacement^2', linestyle = '-')
-# axes[idplot+2].plot(dt, dis2_fit, label=hyb.format_SF_err(D, D_std) + 'um2/ns', linestyle='--')
-axes[idplot+2].plot(dt_tofit, dis2_fit, label = f'fit,D = {D:.2g} cm2/s', linestyle='--')
-
+# axes[idplot+2].fill_between(dt_tofit, dis2_tofit-dis2_sigma, dis2_tofit+dis2_sigma, alpha = 0.3, linewidth=0.5)    # sigma for D fitting
+axes[idplot+2].plot(dt_tofit, dis2_tofit, label='Displacement^2', linewidth=1)  # input for D fitting
+if dis2_fitter.status == 1:
+    axes[idplot+2].plot(dt_tofit, dis2_fit, label=hyb.format_SF_err(D, D_std) + ' cm2/s', color='r', linestyle='--', alpha = 0.5)  # fitted line
 axes[idplot+2].set_xlabel('Time (ns)')
-axes[idplot+2].set_ylabel('Displacement^2')
-axes[idplot+2].set_title('Displacement^2 and linear fit')
-axes[idplot+2].legend()
+axes[idplot+2].set_ylabel('Displacement^2 (um^2)')
+axes[idplot+2].set_title('Displacement^2 (um^2)')
+axes[idplot+2].legend(fontsize=6)
+# exclude outliers
+ymin = np.nanpercentile(dis2_tofit, 5)
+ymax = np.nanpercentile(dis2_tofit, 95)
+axes[idplot+2].set_ylim(ymin*0.8, ymax*1.2)
+
+# estimate and plot fitting weight
+xfit_weights = 1 / dis2_sigma**2
+xfit_weights = xfit_weights / np.max(xfit_weights)  # normalize to max 0.3 for plotting
+
+ax2 = axes[idplot+2].twinx()
+ax2.plot(dt_tofit, xfit_weights, color='k', alpha=0.4, linewidth=0.5)
+ax2.set_ylabel("fitting weight (0–1)")
 
 plt.tight_layout()
 fig.savefig(f"{dir_out}\\PL_imaging_fitparams_{formatted_date}.png", dpi=300)
@@ -387,32 +421,41 @@ plt.close(fig)
 # save normalized data
 dir_txtsave = f"{dir_out}\\txtdata"
 hyb.check_make_dir(dir_txtsave)
-hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\PL_imaging_data_normall_{formatted_date}.txt")
-hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\PL_imaging_data_norm_by_t_{formatted_date}.txt")
-hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\PL_imaging_xfit_data_{formatted_date}.txt")
+hyb.save_combined_matrix(data, dt, dx, f"{dir_txtsave}\\data_raw.txt")
+hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\data_normall.txt")
+hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\data_normt.txt")
+hyb.save_combined_matrix(data.T, dx, dt, f"{dir_txtsave}\\data_raw_T.txt")
+hyb.save_combined_matrix(data_normall.T, dx, dt, f"{dir_txtsave}\\data_normall_T.txt")
+hyb.save_combined_matrix(data_norm_t.T, dx, dt, f"{dir_txtsave}\\data_normt_T.txt")
+
+hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\fitted_data.txt")
+hyb.save_combined_matrix(xfit_data.T, dx, dt, f"{dir_txtsave}\\fitted_data_T.txt")
 
 # save spatial averaged trpl
 out_pd = pd.DataFrame({'Time (ns)': dt, 'Intensity (a.u.)': data_xavg})
-out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_spatial_avg_trpl_{formatted_date}.csv", sep=',')
+out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_spatial_avg_trpl.csv", sep=',')
 
 # save spatial averaged fit
 out_pd = t_fitter.params
-out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_spatial_avg_trpl_fit_params_{formatted_date}.csv", sep=',')
+out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_spatial_avg_trpl_fit_params.csv", sep=',')
 
 # save temporal averaged data
 out_pd = pd.DataFrame({'Position (um)': dx, 'Intensity (a.u.)': data_tavg})
-out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_temporal_avg_profile_{formatted_date}.csv", sep=',')
+out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_temporal_avg_profile.csv", sep=',')
 
-# save fit params        
+# save fit params    
+dir_fitsave = f"{dir_out}\\fitparams"    
+hyb.check_make_dir(dir_fitsave)
+
 param_pd = pd.DataFrame(xfit_params, columns=xfit_param_names, index=dt)
 param_pd.index.name = "param_name"
-param_pd.to_csv(f"{dir_txtsave}\\PL_imaging_fit_params_{formatted_date}.csv", sep=',', index=True)
+param_pd.to_csv(f"{dir_fitsave}\\PL_imaging_fit_params.csv", sep=',', index=True)
 
 std_pd = pd.DataFrame(xfit_stds, columns=[name + '_std' for name in xfit_param_names], index=dt)
 std_pd.index.name = "param_name"
-std_pd.to_csv(f"{dir_txtsave}\\PL_imaging_fit_params_std_{formatted_date}.csv", sep=',', index=True)
+std_pd.to_csv(f"{dir_fitsave}\\PL_imaging_fit_params_std.csv", sep=',', index=True)
 
 combined_pd = pd.concat([param_pd, std_pd], axis=1)
-combined_pd.to_csv(f"{dir_txtsave}\\PL_imaging_fit_params_combined_{formatted_date}.csv", sep=',', index=True)
+combined_pd.to_csv(f"{dir_fitsave}\\PL_imaging_fit_params_combined.csv", sep=',', index=True)
 #%% finish
 print("Job done!")
