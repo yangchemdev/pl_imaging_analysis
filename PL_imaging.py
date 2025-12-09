@@ -181,12 +181,14 @@ if t_binning_width is not None:
     nt = data.shape[0]
 
 # make average 
-data_tavg = np.mean(data, axis = 0)     # average over time. Now only have x axis
-data_xavg = np.mean(data, axis = 1)     # average over space. Now only have t axis
+data_tavg_temp = np.mean(data, axis = 0)     # average over time. Now only have x axis. Note this is before processing so shouldn't be used later
+data_xavg_temp = np.mean(data, axis = 1)     # average over space. Now only have t axis
+data_tavg_temp = data_tavg_temp / np.max(data_tavg_temp)   # normalize 
+data_xavg_temp = data_xavg_temp / np.max(data_xavg_temp)   # normalize 
 
 # find center
-x0 = x[hyb.numpy_nearest(data_tavg, np.max(data_tavg), 'id')]
-t0 = t[hyb.numpy_nearest(data_xavg, np.max(data_xavg), 'id')]
+x0 = x[hyb.numpy_nearest(data_tavg_temp, np.max(data_tavg_temp), 'id')]
+t0 = t[hyb.numpy_nearest(data_xavg_temp, np.max(data_xavg_temp), 'id')]
 print(f"t0 is at {t0} ns, or {np.round(t0/params_data.t_step)} row")
 
 # find net x and net t
@@ -231,6 +233,9 @@ data_normall = data / np.max(data)
 # remake average 
 data_tavg = np.mean(data, axis = 0)
 data_xavg = np.mean(data, axis = 1)
+data_tavg = data_tavg / np.max(data_tavg)   # normalize 
+data_xavg = data_xavg / np.max(data_xavg)   # normalize 
+
 # fit the data_xavg
 t_fitter = hyf.fitter_1D('tfit_avg', t_fit_model, dt, data_xavg)
 t_fitter.fit()
@@ -332,9 +337,11 @@ axes[1].set_xlabel('x (um)')
 axes[1].set_ylabel('Time (ns)')
 cb1 = hyp.colorbar_magic(img1)
 
-# spatial-averaged trpl 
+# TRPL 
 plot_raw = axes[2].semilogy(dt, data_xavg, label='spatial averaged data')
+idcenter = hyb.numpy_nearest(dx, 0, 'idx')
 plot_fitted = axes[2].semilogy(dt, tfit_data, label='fit', linestyle='--')
+plot_center = axes[2].semilogy(dt, data_normall[:, idcenter], label='center')
 axes[2].set_xlabel('Time (ns)')
 axes[2].set_ylabel('Intensity (a.u.)')
 # get phenmonlogical lifetime form 1/e
