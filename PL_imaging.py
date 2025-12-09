@@ -93,11 +93,11 @@ def last_nonzero_row_idx(data):
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
 t_step = 0.016  # time step in ns
-motor_step = 5 # motor step in um
+motor_step = 8 # motor step in um
 mag = 182  # microscopy magnification
 ##### process params #####
 x_range = None   # spatial range to analyze, in um. If None, will use full range
-t_range = [0, 400]  # time range to analyze, in ns. If None, will use full range
+t_range = [-2, 100]  # time range to analyze, in ns. If None, will use full range
 t0_buffer = -1  # buffer before t0 to calculate background, in ns. Used when subtracting background
 t_binning_width = 64 # time binning factor. If None, no binning.
 fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
@@ -108,10 +108,10 @@ displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit'
 sigma_correction = True # whether to apply sigma correction in D fitting
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 5, 20, 200]     # representative frames to be plotted.
+representative_t = [0, 5, 20, 50]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
-overwrite_mode = False # whether to overwrite existing output files
+overwrite_mode = True # whether to overwrite existing output files
 ##### END OF CONFIG #####
 if f_in is None:
     f_in = hyb.GUI_qt_get_file("Select PL imaging .dat file", False, remember=True)
@@ -432,9 +432,9 @@ plt.close(fig)
 #%% save text
 # save normalized data
 import re
-dir_txtsave = f"{dir_out}\\txtdata"
 short_name = re.sub(r"p\d+u\d+$", "", name) # remove pXXuXX at the end of the name
-hyb.check_make_dir(dir_txtsave)
+
+dir_txtsave = hyb.check_make_dir(f"{dir_out}\\txtdata")
 hyb.save_combined_matrix(data, dt, dx, f"{dir_txtsave}\\{short_name}_data_raw.txt", notice=True)    # only proc notice for the 1st save.
 hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\{short_name}_data_normall.txt", notice=False)
 hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\{short_name}_data_normt.txt", notice=False)
@@ -448,27 +448,30 @@ hyb.save_combined_matrix(data_norm_x.T, dx, dt, f"{dir_txtsave}\\{short_name}_da
 hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\{short_name}_fitted_data.txt", notice=False)
 hyb.save_combined_matrix(xfit_data.T, dx, dt, f"{dir_txtsave}\\{short_name}_fitted_data_T.txt", notice=False)
 
+dir_trpl_save = hyb.check_make_dir(f"{dir_out}\\trpl")
+
 # save spatial averaged trpl
 out_pd = pd.DataFrame({'Time (ns)': dt, 'Intensity (a.u.)': data_xavg, 'Intensity_norm (a.u.)': data_xavg_norm})
-out_pd.to_csv(f"{dir_txtsave}\\{short_name}_spatial_avg_trpl.csv", sep=',')
+out_pd.to_csv(f"{dir_trpl_save}\\{short_name}_x_avg_trpl.csv", sep=',')
 # save spatial averaged fit
 out_pd = t_fitter.params
-out_pd.to_csv(f"{dir_txtsave}\\{short_name}_spatial_avg_trpl_fit_params.csv", sep=',')
+out_pd.to_csv(f"{dir_trpl_save}\\{short_name}_x_avg_trpl_fit_params.csv", sep=',')
 
 # save temporal averaged data
 out_pd = pd.DataFrame({'Position (um)': dx, 'Intensity (a.u.)': data_tavg})
-out_pd.to_csv(f"{dir_txtsave}\\{short_name}_temporal_avg_profile.csv", sep=',')
+out_pd.to_csv(f"{dir_trpl_save}\\{short_name}_t_avg_profile.csv", sep=',')
+
 # save fit params    
 dir_fitsave = f"{dir_out}\\fitparams"    
 hyb.check_make_dir(dir_fitsave)
 
 param_pd = pd.DataFrame(xfit_params, columns=xfit_param_names, index=dt)
 param_pd.index.name = "param_name"
-param_pd.to_csv(f"{dir_fitsave}\\{short_name}_fit_params.csv", sep=',', index=True)
+# param_pd.to_csv(f"{dir_fitsave}\\{short_name}_fit_params.csv", sep=',', index=True)
 
 std_pd = pd.DataFrame(xfit_stds, columns=[name + '_std' for name in xfit_param_names], index=dt)
 std_pd.index.name = "param_name"
-std_pd.to_csv(f"{dir_fitsave}\\{short_name}_fit_params_std.csv", sep=',', index=True)
+# std_pd.to_csv(f"{dir_fitsave}\\{short_name}_fit_params_std.csv", sep=',', index=True)     # only save combined matrix 
 
 combined_pd = pd.concat([param_pd, std_pd], axis=1)
 combined_pd.to_csv(f"{dir_fitsave}\\{short_name}_fit_params_combined.csv", sep=',', index=True)
