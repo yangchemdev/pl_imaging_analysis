@@ -111,7 +111,7 @@ param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in ord
 representative_t = [0, 5, 20, 200]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
-overwrite_mode = True # whether to overwrite existing output files
+overwrite_mode = False # whether to overwrite existing output files
 ##### END OF CONFIG #####
 if f_in is None:
     f_in = hyb.GUI_qt_get_file("Select PL imaging .dat file", False, remember=True)
@@ -226,18 +226,21 @@ print(f"New t is {dt[0]} to {dt[-1]}")  # debug only
 pass  # TODO: to be implemented
 
 # norm
-data_max_center = np.max(data, axis=1)
-data_norm_t = data / data_max_center[:, np.newaxis]
+data_max_per_frame = np.max(data, axis=1)
+data_max_per_pixel = np.max(data, axis=0)
+
+data_norm_t = data / data_max_per_frame[:, np.newaxis]
+data_norm_x = data / data_max_per_pixel[np.newaxis, :]
 data_normall = data / np.max(data)
 #%% average time fit
 # remake average 
 data_tavg = np.mean(data, axis = 0)
 data_xavg = np.mean(data, axis = 1)
-data_tavg = data_tavg / np.max(data_tavg)   # normalize 
-data_xavg = data_xavg / np.max(data_xavg)   # normalize 
+data_tavg_norm = data_tavg / np.max(data_tavg)   # normalize 
+data_xavg_norm = data_xavg / np.max(data_xavg)   # normalize 
 
 # fit the data_xavg
-t_fitter = hyf.fitter_1D('tfit_avg', t_fit_model, dt, data_xavg)
+t_fitter = hyf.fitter_1D('tfit_avg', t_fit_model, dt, data_xavg_norm)
 t_fitter.fit()
 tfit_params = t_fitter.params['value']
 tfit_stds = t_fitter.params['std']
@@ -340,7 +343,7 @@ axes[1].set_ylabel('Time (ns)')
 cb1 = hyp.colorbar_magic(img1)
 
 # TRPL 
-plot_raw = axes[2].semilogy(dt, data_xavg, label='spatial averaged data')
+plot_raw = axes[2].semilogy(dt, data_xavg_norm, label='spatial averaged data')
 idcenter = hyb.numpy_nearest(dx, 0, 'idx')
 plot_fitted = axes[2].semilogy(dt, tfit_data, label='fit', linestyle='--')
 plot_center = axes[2].semilogy(dt, data_normall[:, idcenter], label='center')
@@ -435,14 +438,18 @@ hyb.check_make_dir(dir_txtsave)
 hyb.save_combined_matrix(data, dt, dx, f"{dir_txtsave}\\{short_name}_data_raw.txt", notice=True)    # only proc notice for the 1st save.
 hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\{short_name}_data_normall.txt", notice=False)
 hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\{short_name}_data_normt.txt", notice=False)
+hyb.save_combined_matrix(data_norm_x, dt, dx, f"{dir_txtsave}\\{short_name}_data_normx.txt", notice=False)
+
 hyb.save_combined_matrix(data.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_raw_T.txt", notice=False)
 hyb.save_combined_matrix(data_normall.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_normall_T.txt", notice=False)
 hyb.save_combined_matrix(data_norm_t.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_normt_T.txt", notice=False)
+hyb.save_combined_matrix(data_norm_x.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_normx_T.txt", notice=False)
+
 hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\{short_name}_fitted_data.txt", notice=False)
 hyb.save_combined_matrix(xfit_data.T, dx, dt, f"{dir_txtsave}\\{short_name}_fitted_data_T.txt", notice=False)
 
 # save spatial averaged trpl
-out_pd = pd.DataFrame({'Time (ns)': dt, 'Intensity (a.u.)': data_xavg})
+out_pd = pd.DataFrame({'Time (ns)': dt, 'Intensity (a.u.)': data_xavg, 'Intensity_norm (a.u.)': data_xavg_norm})
 out_pd.to_csv(f"{dir_txtsave}\\{short_name}_spatial_avg_trpl.csv", sep=',')
 # save spatial averaged fit
 out_pd = t_fitter.params
