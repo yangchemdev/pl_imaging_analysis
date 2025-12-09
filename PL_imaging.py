@@ -435,7 +435,7 @@ hyb.check_make_dir(dir_txtsave)
 hyb.save_combined_matrix(data, dt, dx, f"{dir_txtsave}\\{short_name}_data_raw.txt", notice=True)    # only proc notice for the 1st save.
 hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\{short_name}_data_normall.txt", notice=False)
 hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\{short_name}_data_normt.txt", notice=False)
-hyb.save_combined_matrix(data.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_raw_T.txt", notice=True)
+hyb.save_combined_matrix(data.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_raw_T.txt", notice=False)
 hyb.save_combined_matrix(data_normall.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_normall_T.txt", notice=False)
 hyb.save_combined_matrix(data_norm_t.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_normt_T.txt", notice=False)
 hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\{short_name}_fitted_data.txt", notice=False)
