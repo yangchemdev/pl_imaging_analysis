@@ -93,14 +93,14 @@ def last_nonzero_row_idx(data):
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
 t_step = 0.016  # time step in ns
-motor_step = 7 # motor step in um
+motor_step = 5 # motor step in um
 mag = 182  # microscopy magnification
 ##### process params #####
 x_range = None   # spatial range to analyze, in um. If None, will use full range
-t_range = [0, 600]  # time range to analyze, in ns. If None, will use full range
+t_range = [0, 400]  # time range to analyze, in ns. If None, will use full range
 t0_buffer = -1  # buffer before t0 to calculate background, in ns. Used when subtracting background
 t_binning_width = 64 # time binning factor. If None, no binning.
-fold_row = 100   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
+fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
 t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 5]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
@@ -419,43 +419,43 @@ plt.close(fig)
 
 #%% save text
 # save normalized data
+import re
 dir_txtsave = f"{dir_out}\\txtdata"
+short_name = re.sub(r"p\d+u\d+$", "", name) # remove pXXuXX at the end of the name
 hyb.check_make_dir(dir_txtsave)
-hyb.save_combined_matrix(data, dt, dx, f"{dir_txtsave}\\data_raw.txt")
-hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\data_normall.txt")
-hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\data_normt.txt")
-hyb.save_combined_matrix(data.T, dx, dt, f"{dir_txtsave}\\data_raw_T.txt")
-hyb.save_combined_matrix(data_normall.T, dx, dt, f"{dir_txtsave}\\data_normall_T.txt")
-hyb.save_combined_matrix(data_norm_t.T, dx, dt, f"{dir_txtsave}\\data_normt_T.txt")
+hyb.save_combined_matrix(data, dt, dx, f"{dir_txtsave}\\{short_name}_data_raw.txt")
+hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\{short_name}_data_normall.txt")
+hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\{short_name}_data_normt.txt")
+hyb.save_combined_matrix(data.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_raw_T.txt")
+hyb.save_combined_matrix(data_normall.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_normall_T.txt")
+hyb.save_combined_matrix(data_norm_t.T, dx, dt, f"{dir_txtsave}\\{short_name}_data_normt_T.txt")
 
-hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\fitted_data.txt")
-hyb.save_combined_matrix(xfit_data.T, dx, dt, f"{dir_txtsave}\\fitted_data_T.txt")
+hyb.save_combined_matrix(xfit_data, dt, dx, f"{dir_txtsave}\\{short_name}_fitted_data.txt")
+hyb.save_combined_matrix(xfit_data.T, dx, dt, f"{dir_txtsave}\\{short_name}_fitted_data_T.txt")
 
 # save spatial averaged trpl
 out_pd = pd.DataFrame({'Time (ns)': dt, 'Intensity (a.u.)': data_xavg})
-out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_spatial_avg_trpl.csv", sep=',')
-
+out_pd.to_csv(f"{dir_txtsave}\\{short_name}_spatial_avg_trpl.csv", sep=',')
 # save spatial averaged fit
 out_pd = t_fitter.params
-out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_spatial_avg_trpl_fit_params.csv", sep=',')
+out_pd.to_csv(f"{dir_txtsave}\\{short_name}_spatial_avg_trpl_fit_params.csv", sep=',')
 
 # save temporal averaged data
 out_pd = pd.DataFrame({'Position (um)': dx, 'Intensity (a.u.)': data_tavg})
-out_pd.to_csv(f"{dir_txtsave}\\PL_imaging_temporal_avg_profile.csv", sep=',')
-
+out_pd.to_csv(f"{dir_txtsave}\\{short_name}_temporal_avg_profile.csv", sep=',')
 # save fit params    
 dir_fitsave = f"{dir_out}\\fitparams"    
 hyb.check_make_dir(dir_fitsave)
 
 param_pd = pd.DataFrame(xfit_params, columns=xfit_param_names, index=dt)
 param_pd.index.name = "param_name"
-param_pd.to_csv(f"{dir_fitsave}\\PL_imaging_fit_params.csv", sep=',', index=True)
+param_pd.to_csv(f"{dir_fitsave}\\{short_name}_fit_params.csv", sep=',', index=True)
 
 std_pd = pd.DataFrame(xfit_stds, columns=[name + '_std' for name in xfit_param_names], index=dt)
 std_pd.index.name = "param_name"
-std_pd.to_csv(f"{dir_fitsave}\\PL_imaging_fit_params_std.csv", sep=',', index=True)
+std_pd.to_csv(f"{dir_fitsave}\\{short_name}_fit_params_std.csv", sep=',', index=True)
 
 combined_pd = pd.concat([param_pd, std_pd], axis=1)
-combined_pd.to_csv(f"{dir_fitsave}\\PL_imaging_fit_params_combined.csv", sep=',', index=True)
+combined_pd.to_csv(f"{dir_fitsave}\\{short_name}_fit_params_combined.csv", sep=',', index=True)
 #%% finish
 print("Job done!")
