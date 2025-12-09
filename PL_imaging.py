@@ -301,10 +301,12 @@ if sigma_correction is True:
     elif displacement_source == 'MSD':
         dis2_sigma = 1 / np.abs(data_xavg)  # rough estimate of noise level
         dis2_sigma = dis2_sigma[valid_mask]
-    # reduce very small sigma. 0.1~1 ns usually fit well, so I will set 25% of that as floor 
+    # reduce very small sigma. 0.1~1 ns usually fit well, so I will set 50% of that as floor 
     t0id0 = hyb.numpy_nearest(dt_tofit, 0.1, 'idx',direction=1)
     t1id0 = hyb.numpy_nearest(dt_tofit, 1, 'idx', direction=1)
-    dis2_sigma_floor = np.median(dis2_sigma[t0id0:t1id0]) * 0.5  # set floor to 25% of median of early sections
+    t1id0 = max(t0id0+5, t1id0)  # ensure at least 5 points
+    print(f"Using {t0id0} to {t1id0} rows to calculate sigma floor.")   # debug
+    dis2_sigma_floor = np.median(dis2_sigma[t0id0:t1id0]) * 0.5  # set floor to 50% of median of early sections
     dis2_sigma += dis2_sigma_floor  # add floor
 else:
     dis2_sigma = np.ones_like(dis2_tofit) * np.mean(dis2_tofit) * 0.1  # same weight, normalized to average value so that it is easy to plot together with dis2
