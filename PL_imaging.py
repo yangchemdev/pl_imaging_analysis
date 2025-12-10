@@ -92,15 +92,15 @@ def last_nonzero_row_idx(data):
 #%% config
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
-t_step = 0.016  # time step in ns
-motor_step = 8 # motor step in um
+t_step = 0.008  # time step in ns
+motor_step = 5  # motor step in um
 mag = 182  # microscopy magnification
 ##### process params #####
 x_range = None   # spatial range to analyze, in um. If None, will use full range
-t_range = [-2, 100]  # time range to analyze, in ns. If None, will use full range
+t_range = [-0.2, 10]  # time range to analyze, in ns. If None, will use full range
 t0_buffer = -1  # buffer before t0 to calculate background, in ns. Used when subtracting background
-t_binning_width = 64 # time binning factor. If None, no binning.
-fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
+t_binning_width = 8 # time binning factor. If None, no binning.
+fold_row = 200   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
 t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 5]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
@@ -108,10 +108,10 @@ displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit'
 sigma_correction = True # whether to apply sigma correction in D fitting
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 5, 20, 50]     # representative frames to be plotted.
+representative_t = [0, 1, 3, 10]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
-overwrite_mode = True # whether to overwrite existing output files
+overwrite_mode = False # whether to overwrite existing output files
 ##### END OF CONFIG #####
 if f_in is None:
     f_in = hyb.GUI_qt_get_file("Select PL imaging .dat file", False, remember=True)
