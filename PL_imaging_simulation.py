@@ -2,25 +2,29 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # Parameters
-D  = 1.0       # diffusion coefficient
-k2 = 0.1       # quadratic reaction rate
-k3 = 0.01      # cubic reaction rate
+D  = 1.0e-3       # diffusion coefficient in um2/ns. Equivalent to 0.1 * x cm2/s 
+k2 = 0.1       # quadratic reaction rate, unit in 
+k3 = 0      # cubic reaction rate
 
-L  = 1.0       # domain length
+L  = 1.0       # domain length in um
 Nx = 100       # number of spatial points
 dx = L / (Nx - 1)
 
 dt = 1e-6      # time step (must satisfy stability cond ition)
 Nt = 100      # number of time steps
 
-# Spatial grid
-x = np.linspace(0, L, Nx)
-
+# Spatial gride
+x = np.linspace(-L/2, L/2, Nx)  # grid, centered at x=0
+n0_pop = 3.7e5  # Integrated n0 concentration unit in 1/um2. 
+n0_sigma = 0.2  # width of Gaussian bump unit in um
 # Initial condition
-def N0(x):
-    return np.exp(-200*(x-0.5)**2)  # Gaussian bump
+def area_gaussian(x, sigma, A, x0):
+    return A * 1 / (sigma * np.sqrt(2 * np.pi)) * np.exp(-(x - x0)**2 / (2 * sigma**2))
 
-N = N0(x).copy()
+def N0_x(x):
+    return area_gaussian(x, n0_sigma, n0_pop, 0)
+
+N = N0_x(x).copy()
 
 # For stability of explicit diffusion:
 # dt < dx^2/(2D)
@@ -40,7 +44,7 @@ for n in range(Nt):
     N = np.clip(N, 0, 1e3)  # or whatever max is physically reasonable
 
 # Plot final result
-plt.plot(x, N0(x), label='Initial')
+plt.plot(x, N0_x(x), label='Initial')
 plt.plot(x, N, label='Final')
 plt.legend()
 plt.xlabel('x')
