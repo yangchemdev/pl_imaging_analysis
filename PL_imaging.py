@@ -27,7 +27,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm as tqdm
-import matplotlib   # debug
 
 #%% define
 def first_with_w_idx(strings):
