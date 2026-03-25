@@ -34,7 +34,6 @@ def first_with_w_idx(strings):
         if 'w' in s:
             return idx
     return None   # if nothing contains 'w'
-import numpy as np
 
 def bin_rows_2D(data: np.ndarray, w: int) -> np.ndarray:
     if data.ndim != 2:
@@ -186,6 +185,7 @@ data_tavg_temp = data_tavg_temp / np.max(data_tavg_temp)   # normalize
 data_xavg_temp = data_xavg_temp / np.max(data_xavg_temp)   # normalize 
 
 # find center
+# NOTE: weird logic
 x0 = x[hyb.numpy_nearest(data_tavg_temp, np.max(data_tavg_temp), 'id')]
 t0 = t[hyb.numpy_nearest(data_xavg_temp, np.max(data_xavg_temp), 'id')]
 print(f"t0 is at {t0} ns, or {np.round(t0/params_data.t_step)} row")
