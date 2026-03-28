@@ -90,23 +90,23 @@ def last_nonzero_row_idx(data):
 #%% config
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
-t_step = 0.008  # time step in ns
-motor_step = 5  # motor step in um
+t_step = 0.032  # time step in ns
+motor_step = 10  # motor step in um
 mag = 182  # microscopy magnification
 ##### process params #####
 x_range = None   # spatial range to analyze, in um. If None, will use full range
-t_range = [-0.2, 8]  # time range to analyze, in ns. If None, will use full range
-t0_buffer = -1  # buffer before t0 to calculate background, in ns. Used when subtracting background
-t_binning_width = 16 # time binning factor. If None, no binning.
+t_range = [-1, 500]  # time range to analyze, in ns. If None, will use full range
+t0_buffer = -5  # buffer before t0 to calculate background, in ns. Used when subtracting background
+t_binning_width = 128 # time binning factor. If None, no binning.
 fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
-t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 5]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
+t_fit_model = hyf.exp_ne_wrapper(1, np.array([100]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
-displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+displacement_source = 'MSD' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 sigma_correction = True # whether to apply sigma correction in D fitting
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 1, 3, 8]     # representative frames to be plotted.
+representative_t = [0, 10, 100, 500]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 overwrite_mode = False # whether to overwrite existing output files
@@ -124,33 +124,33 @@ formatted_date = todaydate.strftime('%y%m%d')
 dir_out = hyb.check_make_dir(f"{dir_in}\\{name}_output_{formatted_date}", auto_rename = not overwrite_mode)
 
 # make config class
-params_data = hyconfig.code_section([
-    ("f_in", f_in),  # path to the .dat file. if None, will prompt user to select file
-    ("dir_in", dir_in),  # directory of input file  
-    ("t_step", t_step),  # time step in ns
-    ("motor_step", motor_step),  # motor step in um
-    ("mag", mag),  # microscopy magnification 
-])
-params_process = hyconfig.code_section([
-    ("x_range", x_range),   # spatial range to analyze, in um. If None, will use full range
-    ("t_range", t_range),  # time range to analyze, in ns. If None, will use full range
-    ("t0_buffer", t0_buffer),   # buffer before t0 to calculate background, in ns. Used when subtracting background
-    ("t_binning_width", t_binning_width), # time binning factor. If None, no binning.
-    ('fold_row', fold_row),
-    ("x_fit_model", x_fit_model.funcname),  # model to fit spatial profile
-    ("t_fit_model", t_fit_model.funcname),  # model to fit time profile. Currently only supports exp decay
-    ("trig_MSD_rezero", trig_MSD_rezero), # whether to re-zero MSD calculation by subtracting initial MSD value
-    ("displacement_source", displacement_source), # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
-    ('sigma_correction', sigma_correction) # whether to apply sigma correction in D fitting
-])
-params_visualize = hyconfig.code_section([
-    ("param_units", param_units),
-    ("representative_t", representative_t)
-])
-params_output = hyconfig.code_section([
-    ("dir_out", dir_out),  # path to save output files. If None, will use input file directory
-    ("overwrite_mode", overwrite_mode) # whether to overwrite existing output files
-])
+params_data = hyconfig.code_section({
+    "f_in": f_in,  # path to the .dat file. if None, will prompt user to select file
+    "dir_in": dir_in,  # directory of input file  
+    "t_step": t_step,  # time step in ns
+    "motor_step": motor_step,  # motor step in um
+    "mag": mag,  # microscopy magnification 
+})
+params_process = hyconfig.code_section({
+    "x_range": x_range,   # spatial range to analyze, in um. If None, will use full range
+    "t_range": t_range,  # time range to analyze, in ns. If None, will use full range
+    "t0_buffer": t0_buffer,   # buffer before t0 to calculate background, in ns. Used when subtracting background
+    "t_binning_width": t_binning_width, # time binning factor. If None, no binning.
+    "fold_row": fold_row,
+    "x_fit_model": x_fit_model.funcname,  # model to fit spatial profile
+    "t_fit_model": t_fit_model.funcname,  # model to fit time profile. Currently only supports exp decay
+    "trig_MSD_rezero": trig_MSD_rezero, # whether to re-zero MSD calculation by subtracting initial MSD value
+    "displacement_source": displacement_source, # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+    "sigma_correction": sigma_correction # whether to apply sigma correction in D fitting
+})
+params_visualize = hyconfig.code_section({
+    "param_units": param_units,
+    "representative_t": representative_t
+})
+params_output = hyconfig.code_section({
+    "dir_out": dir_out,  # path to save output files. If None, will use input file directory
+    "overwrite_mode": overwrite_mode # whether to overwrite existing output files
+})
 
 params = hyconfig.config_class([params_data, params_process, params_visualize, params_output])
 params.to_json(f"{params_output.dir_out}\\config_files_{formatted_date}.json")
@@ -198,7 +198,7 @@ dt = t - t0
 # use intensity before t0 as background. 5 ns buffer before t0
 bg_mask = dt < t0_buffer   # NOTE: the buffer is subject to change
 if not np.any(bg_mask):
-    raise ValueError(f"No time points found for background (dt < -5). "
+    raise ValueError(f"No time points found for background (dt < {t0_buffer}). "
                      f"Min dt = {dt.min():.3f}")
 bg = np.percentile(data[bg_mask, :], 45, axis=0)
 data = data - bg[np.newaxis, :]
@@ -258,7 +258,10 @@ xfit_r2 = np.zeros(nt)
 xfit_status = np.zeros(nt)
 # fit
 for idt in tqdm(range(nt)):
-    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, dx, data[idt, :], lb=np.array([0, -0.2, 0.1, -np.inf]), hb=np.array([np.inf, 0.2, 0.6, np.inf]))
+    x_fitter = hyf.fitter_1D(f"xfit_#{idt}", x_fit_model, x, data[idt, :], 
+                             lb = np.array([0, -np.inf, 0.1, -np.inf]), 
+                             hb = np.array([np.inf, np.inf, 1, np.inf]),
+                             p0 = np.array([np.max(data[idt, :]), x0, 0.5, 0]))  # [A, x0, w, offset]
     x_fitter.fit()
     xfit_params[idt, :] = x_fitter.params['value']
     xfit_stds[idt, :] = x_fitter.params['std']
@@ -325,18 +328,18 @@ dis2_r2 = dis2_fitter.r2
 #%% visualize
 matplotlib.rcParams['font.size'] = 7   # size too large... HACK: global setting.
 # plot raw data
-fig, axes = plt.subplots(2,2, figsize=(6, 5), dpi=300)
+fig, axes = plt.subplots(2,2, figsize=(6, 5), dpi=150)
 axes = axes.flatten()
 # normalized data
 # data_normall_log = np.log10(data_normall)
-im0 = axes[0].imshow(data_normall, extent=[dx[0], dx[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
+im0 = axes[0].imshow(data_normall, extent=[x[0], x[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
 axes[0].set_xlabel('x (um)')
 axes[0].set_ylabel('Time (ns)')
 cb0 = hyp.colorbar_magic(im0)
 
 # t-normalized data
 # data_norm_t_log = np.log10(data_norm_t)
-img1 = axes[1].imshow(data_norm_t, extent=[dx[0], dx[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
+img1 = axes[1].imshow(data_norm_t, extent=[x[0], x[-1], dt[0], dt[-1]], aspect='auto', cmap='viridis', origin = 'lower')
 axes[1].set_xlabel('x (um)')
 axes[1].set_ylabel('Time (ns)')
 cb1 = hyp.colorbar_magic(img1)
