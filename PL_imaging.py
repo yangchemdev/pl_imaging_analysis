@@ -16,6 +16,7 @@ output:
     fit result
 '''
 #%% import
+import os
 import numpy as np
 from hytools import (
     hy_basic as hyb,
@@ -28,7 +29,49 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm as tqdm
 import matplotlib
+from scipy.signal import savgol_filter
+
 #%% define
+def adjacent_average(arr, window=1):
+    """
+    Compute a centered moving average over a 1D NumPy array.
+
+    Parameters
+    ----------
+    arr : array_like
+        1D input array.
+    window : int
+        Half-width of the averaging window. The full window spans
+        [i - window, i + window], clipped at array boundaries.
+
+    Returns
+    -------
+    out : np.ndarray (float64)
+        Array of the same length as `arr`.
+    """
+    arr = np.asarray(arr, dtype=np.float64)
+    n = len(arr)
+    out = np.empty(n, dtype=np.float64)
+    for i in range(n):
+        lo = max(0, i - window)
+        hi = min(n, i + window + 1)
+        out[i] = arr[lo:hi].mean()
+    return out
+
+def iterative_argmax_find(arr, n_peaks, min_distance = 0):
+    ''' Iteratively find the n_peak maximum in arr, with a minimum distance constraint. Returns the indices of the peaks. '''
+    arr = np.asarray(arr)
+    peaks = np.zeros(n_peaks, dtype=int)
+    temp_arr = arr.copy()
+    for i in range(n_peaks):
+        idx = np.nanargmax(temp_arr)
+        peaks[i] = idx
+        # cut 
+        lo = max(0, idx - min_distance)
+        hi = min(len(temp_arr), idx + min_distance + 1)
+        temp_arr[lo:hi] = np.nan
+    return np.sort(peaks)
+
 def first_with_w_idx(strings):
     for idx, s in enumerate(strings):
         if 'w' in s:
@@ -87,26 +130,67 @@ def last_nonzero_row_idx(data):
 
     return idx[-1] if idx.size > 0 else None   # None means all-zero matrix
 
+def fix_replica(data, t_step, replica_n, min_dt, t0_buffer = 1, debug = False):
+    '''
+    Fix 447 replica by finding the replica peaks, aligning them, and averaging over them.
+    Arguments:
+        data: 2D array of shape (time, pixel)
+        t_step: float, time step in ns
+        replica_n: int, number of replica to find
+        min_dt: float, minimum dt between replica in ns
+        t0_buffer: float, buffer before t0 to calculate background, in ns. Used when subtracting background
+    '''
+    # xavg and smooth
+    data_xavg = np.mean(data, axis=1)  # spatially averaged data
+    data_xavg_sm = adjacent_average(data_xavg, window=6) # 447 t-reso is usually 8, makes window length ~13*0.008 = ~0.1 ns
+    # find replica peaks.
+    n_min_dt = int(min_dt // t_step)  # convert min_dt to number of rows
+    replica_peaks = iterative_argmax_find(data_xavg_sm, n_peaks=replica_n, min_distance= n_min_dt)
+    # sanity check: replica peaks should be roughly equally spaced
+    replica_peaks_diff = np.diff(replica_peaks)
+    assert np.max(replica_peaks_diff) - np.min(replica_peaks_diff) <= 12 , f"Replica peaks are not roughly equally spaced. peaks are row #: {replica_peaks}."
+    # 12 point is for ~0.1 ns error.
+    replica_length = int(np.median(replica_peaks_diff))  
+    # align and sum-over the replica
+    n_t0buffer = int(t0_buffer // t_step)
+    data_replica = np.full((replica_length, data.shape[1], replica_n), np.nan)     # indexing: [time, pixel, replica]
+    for i in range(replica_n):
+        data_replica[:, :, i] = data[replica_peaks[i]-n_t0buffer : replica_peaks[i]+replica_length-n_t0buffer, :]
+    # some replica have trailing zeros.
+    for i in range(replica_n):
+        last_nonzero_idx = last_nonzero_row_idx(data_replica[:, :, i])
+        if last_nonzero_idx is not None and last_nonzero_idx < replica_length - 1:
+            data_replica[last_nonzero_idx+1:, :, i] = np.nan  # set to nan for later cut-off
+    data_fixed = np.nanmean(data_replica, axis=2)   # average over replica
+    data_fixed[np.isnan(data_fixed)] = 0  #HACK: set nan to 0.
+    if debug:
+        return data_fixed, data_replica, replica_peaks
+    else:
+        return data_fixed
+
 #%% config
 ##### data params #####
 f_in = None  # path to the .dat file. if None, will prompt user to select file
-t_step = 0.032  # time step in ns
+t_step = 0.008  # time step in ns
 motor_step = 10  # motor step in um
 mag = 182  # microscopy magnification
+trig_447_replica_fix = True  # When 447 laser is used, it sometimes create 4 replica. This trigger will align and sum-over the 4 replica.
+replica_n = 4 # number of replica.
+min_dt = 5  # minimum dt between replica, in ns.
 ##### process params #####
 x_range = None   # spatial range to analyze, in um. If None, will use full range
-t_range = [-1, 500]  # time range to analyze, in ns. If None, will use full range
-t0_buffer = -5  # buffer before t0 to calculate background, in ns. Used when subtracting background
-t_binning_width = 128 # time binning factor. If None, no binning.
+t_range = [-0.5, 10]  # time range to analyze, in ns. If None, will use full range
+t0_buffer = 1  # buffer before t0 to calculate background, in positive ns.
+t_binning_width = 10 # time binning factor. If None, no binning.
 fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
-t_fit_model = hyf.exp_ne_wrapper(1, np.array([100]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
+t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 5]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
-displacement_source = 'MSD' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 sigma_correction = True # whether to apply sigma correction in D fitting
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 10, 100, 500]     # representative frames to be plotted.
+representative_t = [0, 1, 4, 8]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 overwrite_mode = False # whether to overwrite existing output files
@@ -157,6 +241,11 @@ params.to_json(f"{params_output.dir_out}\\config_files_{formatted_date}.json")
 params.to_pickle(f"{params_output.dir_out}\\config_files_{formatted_date}.pkl")
 #%% load
 data = np.loadtxt(params_data.f_in, delimiter="\t") # I need to check the delimiter
+
+# 447 replica fix
+if trig_447_replica_fix:
+    data, data_replica, n_replica = fix_replica(data, t_step, replica_n, min_dt, 2 * t0_buffer, debug = True)   # data_replica is only for debug
+    print(f"447 replica fixed. Found replica peaks at rows {n_replica}. Averaged over {replica_n} replica.")
 # delete trailing 0s
 data = data[:last_nonzero_row_idx(data)+1]
 
@@ -170,6 +259,7 @@ x = np.arange(nx) * x_step  # in um
 if fold_row is not None:
     data = fold_trpl(data, fold_row)
     t = np.arange(nt) * params_data.t_step
+
 
 # t binning
 if t_binning_width is not None:
@@ -196,7 +286,7 @@ dt = t - t0
 
 # debg
 # use intensity before t0 as background. 5 ns buffer before t0
-bg_mask = dt < t0_buffer   # NOTE: the buffer is subject to change
+bg_mask = dt < -1*t0_buffer   # NOTE: the buffer is subject to change
 if not np.any(bg_mask):
     raise ValueError(f"No time points found for background (dt < {t0_buffer}). "
                      f"Min dt = {dt.min():.3f}")
@@ -435,8 +525,8 @@ plt.close(fig)
 # save normalized data
 import re
 short_name = re.sub(r"p\d+u\d+$", "", name) # remove pXXuXX at the end of the name
-
-dir_txtsave = hyb.check_make_dir(f"{dir_out}\\txtdata")
+dir_txtsave = os.path.normpath(f"{dir_out}\\txtdata")
+dir_txtsave = hyb.check_make_dir(dir_txtsave)
 hyb.save_combined_matrix(data, dt, dx, f"{dir_txtsave}\\{short_name}_data_raw.txt", notice=True)    # only proc notice for the 1st save.
 hyb.save_combined_matrix(data_normall, dt, dx, f"{dir_txtsave}\\{short_name}_data_normall.txt", notice=False)
 hyb.save_combined_matrix(data_norm_t, dt, dx, f"{dir_txtsave}\\{short_name}_data_normt.txt", notice=False)
