@@ -1,5 +1,5 @@
 """
-plot_3d_data.py
+2d_visualization.py
 ---------------
 Load a set of tab-delimited .txt files representing a 3-D dataset (t, x, y),
 bin the time axis by averaging, find t=0 from the global intensity peak, and
@@ -16,7 +16,7 @@ Files are sorted by name so they map to y in ascending order.
 Usage
 -----
 Edit the PARAMETERS block below, then run:
-    python plot_3d_data.py
+    python 2d_visualization.py
 """
 
 import glob
