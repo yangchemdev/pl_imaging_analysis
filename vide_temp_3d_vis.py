@@ -30,12 +30,12 @@ from hytools.hy_basic import check_make_dir
 # ─────────────────────────────────────────────────────────────────────────────
 # PARAMETERS  –  edit these
 # ─────────────────────────────────────────────────────────────────────────────
-DATA_DIR   = "F:\\OneDrive - purdue.edu\\Data\\Optical Spectra\\PL\\2026\\260327 pl plimg\\08"
+DATA_DIR   = "F:\\OneDrive - purdue.edu\\Data\\Optical Spectra\\PL\\2026\\260327 1DLOC PL_fin\\plimg\\11"
 OUTPUT_DIR = check_make_dir(f"{DATA_DIR}\\fig")
 FILE_GLOB  = "*.txt"
 
 T_BIN      = 1024        # raw time rows averaged per output frame
-DT         = 0.032      # time step (ns, ps, … — whatever your instrument uses)
+DT         = 0.016      # time step (ns, ps, … — whatever your instrument uses)
 
 # T0 detection: the spatially-summed trace is smoothed with a boxcar of this
 # width (in raw rows) before argmax.  Increase if the peak is very noisy;
@@ -48,7 +48,7 @@ DY         = 10 / 182     # y step (same units as your spatial axis)
 # Colormap / display
 CMAP        = "RdBu_r"
 CLIM_MODE   = "frame"   # "global" | "frame"
-CLIM_PCTILE = (2, 98)
+CLIM_PCTILE = (1, 99)
 
 # Output
 SAVE_DPI    = 100
