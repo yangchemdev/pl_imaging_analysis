@@ -342,23 +342,23 @@ def load_data(f_ins: list, t_reso: float, x_reso: float, source_type: str = '1',
 
 #%% config
 ##### data params #####
-source_mode = 'radial'      # '1', 'mean', 'max', 'radial', 'interp'
+source_mode = 'interp'      # '1', 'mean', 'max', 'radial', 'interp'
 f_in = None                 # path(s) to .dat file(s). If None, GUI prompt is used.
 t_step = 0.016              # time step in ns
-motor_step_x = 10           # motor step in um (x)
+motor_step_x = 5           # motor step in um (x)
 motor_step_y = 10           # motor step in um (y; ignored in '1', 'mean', 'max' modes)
 mag = 182                   # microscope magnification
 trig_447_replica_fix = False  # align and average 447 nm laser replicas
 replica_n = 4               # number of replicas
 min_dt = 5                  # minimum separation between replicas in ns
-theta = 30 / 180 * np.pi   # interpolation angle in radians (interp mode only)
+theta = 120 / 180 * np.pi   # interpolation angle in radians (interp mode only)
 fold_row = None             # row index to fold data to end; None to skip
 
 ##### process params #####
 x_range = None              # spatial range to analyze in um; None = full range
-t_range = [0, 50]           # time range to analyze in ns; None = full range
+t_range = [0, 40]           # time range to analyze in ns; None = full range
 t0_buffer = -1              # buffer before t0 for background subtraction in ns
-t_binning_width = 32        # time binning factor; None = no binning
+t_binning_width = 64        # time binning factor; None = no binning
 x_fit_model = hyf.func_class_gaussian
 t_fit_model = hyf.exp_ne_wrapper(1, np.array([10]), trig_non_negative_A=True, trig_non_negative_c=True)
 trig_MSD_rezero = False     # re-zero MSD by subtracting initial MSD value
