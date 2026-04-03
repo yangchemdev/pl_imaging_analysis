@@ -28,6 +28,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 from tqdm import tqdm as tqdm
 import matplotlib
+import re
+
 #%% define
 def first_with_w_idx(strings):
     for idx, s in enumerate(strings):
@@ -86,6 +88,11 @@ def last_nonzero_row_idx(data):
     idx = np.where(mask)[0]
 
     return idx[-1] if idx.size > 0 else 0   # None means all-zero matrix
+
+def natural_sort_key(s):
+    '''sort strings containing numbers in human order, e.g. file2 before file10
+    use example: filenames_sorted = sorted(filenames, key=natural_sort_key)'''
+    return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
 
 #%% load functions
 # The data loading part should be functionalized. The result should be 1D and fit-ready.
@@ -205,33 +212,42 @@ def load_data(f_ins: list, t_reso: float, x_reso: float, source_type: str = '1',
     return data, t, x
 #%% config
 ##### data params #####
-source_mode = '1'  # how to get 1D data from 2D raw. '1' to use the first file, 'mean' to average all files, 'max' to take max of all files, 'radial' for radial average, 'interp' for interpolation along a line. For 'radial' and 'interp', the output x will be the radial distance or interpolation distance.
+source_mode = 'interp'  # how to get 1D data from 2D raw. '1' to use the first file, 'mean' to average all files, 'max' to take max of all files, 'radial' for radial average, 'interp' for interpolation along a line. For 'radial' and 'interp', the output x will be the radial distance or interpolation distance.
 f_in = None  # path to the .dat file. if None, will prompt user to select file
-t_step = 0.008  # time step in ns
-motor_step = 5  # motor step in um
+t_step = 0.032  # time step in ns
+motor_step = 10  # motor step in um
 mag = 182  # microscopy magnification
-theta = 0  # angle of interpolation line in radian. Only used for interpolation.
+theta = 90  # angle of interpolation line in radian. Only used for interpolation.
 ##### process params #####
 x_range = None   # spatial range to analyze, in um. If None, will use full range
-t_range = [-0.2, 8]  # time range to analyze, in ns. If None, will use full range
+t_range = [0, 100]  # time range to analyze, in ns. If None, will use full range
 t0_buffer = -1  # buffer before t0 to calculate background, in ns. Used when subtracting background
-t_binning_width = 16 # time binning factor. If None, no binning.
+t_binning_width = 32 # time binning factor. If None, no binning.
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
-t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 5]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
+t_fit_model = hyf.exp_ne_wrapper(1, np.array([10]), trig_non_negative_A = True, trig_non_negative_c = True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
-displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+displacement_source = 'MSD' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 sigma_correction = True # whether to apply sigma correction in D fitting
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 1, 3, 8]     # representative frames to be plotted.
+representative_t = [0, 10, 30, 90]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 overwrite_mode = False # whether to overwrite existing output files
 ##### END OF CONFIG #####
-if f_in is None:
+# need to process differently depending on load mode
+# NOTE: f_in must be a list, even with len == 1 for mode == 1
+if source_mode == '1':  # 1D data expect 1 file only
+    if f_in is None:
+        f_in = hyb.GUI_qt_get_file("Select PL imaging .dat file", False, remember=True)
+    # get dir_in
+    dir_in, name, _ = hyb.get_file_name_from_dir(f_in[0])
+else:
     f_in = hyb.GUI_qt_get_file("Select PL imaging .dat file", False, remember=True)
-# get dir_in
-dir_in, name, _ = hyb.get_file_name_from_dir(f_in)
+    f_in = sorted(f_in, key=lambda f: natural_sort_key(hyb.get_file_name_from_dir(f)[1]))
+    names = [hyb.get_file_name_from_dir(f)[1] for f in f_in]
+    # sort files by name to ensure correct order for mean and max mode
+    dir_in, name, _ = hyb.get_file_name_from_dir(f_in[0])
 
 # get time data
 todaydate = datetime.today()
@@ -240,32 +256,32 @@ formatted_date = todaydate.strftime('%y%m%d')
 dir_out = hyb.check_make_dir(f"{dir_in}\\{name}_output_{formatted_date}", auto_rename = not overwrite_mode)
 
 # make config class
-params_data = hyconfig.code_section([
-    ("f_in", f_in),  # path to the .dat file. if None, will prompt user to select file
-    ("dir_in", dir_in),  # directory of input file  
-    ("t_step", t_step),  # time step in ns
-    ("motor_step", motor_step),  # motor step in um
-    ("mag", mag),  # microscopy magnification 
-])
-params_process = hyconfig.code_section([
-    ("x_range", x_range),   # spatial range to analyze, in um. If None, will use full range
-    ("t_range", t_range),  # time range to analyze, in ns. If None, will use full range
-    ("t0_buffer", t0_buffer),   # buffer before t0 to calculate background, in ns. Used when subtracting background
-    ("t_binning_width", t_binning_width), # time binning factor. If None, no binning.
-    ("x_fit_model", x_fit_model.funcname),  # model to fit spatial profile
-    ("t_fit_model", t_fit_model.funcname),  # model to fit time profile. Currently only supports exp decay
-    ("trig_MSD_rezero", trig_MSD_rezero), # whether to re-zero MSD calculation by subtracting initial MSD value
-    ("displacement_source", displacement_source), # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
-    ('sigma_correction', sigma_correction) # whether to apply sigma correction in D fitting
-])
-params_visualize = hyconfig.code_section([
-    ("param_units", param_units),
-    ("representative_t", representative_t)
-])
-params_output = hyconfig.code_section([
-    ("dir_out", dir_out),  # path to save output files. If None, will use input file directory
-    ("overwrite_mode", overwrite_mode) # whether to overwrite existing output files
-])
+params_data = hyconfig.code_section({
+    "f_in": f_in,  # path to the .dat file. if None, will prompt user to select file
+    "dir_in": dir_in,  # directory of input file  
+    "t_step": t_step,  # time step in ns
+    "motor_step": motor_step,  # motor step in um
+    "mag": mag,  # microscopy magnification 
+})
+params_process = hyconfig.code_section({
+    "x_range": x_range,   # spatial range to analyze, in um. If None, will use full range
+    "t_range": t_range,  # time range to analyze, in ns. If None, will use full range
+    "t0_buffer": t0_buffer,   # buffer before t0 to calculate background, in ns. Used when subtracting background
+    "t_binning_width": t_binning_width, # time binning factor. If None, no binning.
+    "x_fit_model": x_fit_model.funcname,  # model to fit spatial profile
+    "t_fit_model": t_fit_model.funcname,  # model to fit time profile. Currently only supports exp decay
+    "trig_MSD_rezero": trig_MSD_rezero, # whether to re-zero MSD calculation by subtracting initial MSD value
+    "displacement_source": displacement_source, # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+    "sigma_correction": sigma_correction # whether to apply sigma correction in D fitting
+})
+params_visualize = hyconfig.code_section({
+    "param_units": param_units,
+    "representative_t": representative_t
+})
+params_output = hyconfig.code_section({
+    "dir_out": dir_out,  # path to save output files. If None, will use input file directory
+    "overwrite_mode": overwrite_mode # whether to overwrite existing output files
+})
 
 params = hyconfig.config_class([params_data, params_process, params_visualize, params_output])
 params.to_json(f"{params_output.dir_out}\\config_files_{formatted_date}.json")
