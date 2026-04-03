@@ -30,6 +30,7 @@ from datetime import datetime
 from tqdm import tqdm as tqdm
 import matplotlib
 from scipy.signal import savgol_filter
+import re
 
 #%% define
 def adjacent_average(arr, window=1):
@@ -128,7 +129,7 @@ def last_nonzero_row_idx(data):
     # Find indices where mask is True
     idx = np.where(mask)[0]
 
-    return idx[-1] if idx.size > 0 else None   # None means all-zero matrix
+    return idx[-1] if idx.size > 0 else 0   # None means all-zero matrix
 
 def fix_replica(data, t_step, replica_n, min_dt, t0_buffer = 1, debug = False):
     '''
@@ -168,8 +169,130 @@ def fix_replica(data, t_step, replica_n, min_dt, t0_buffer = 1, debug = False):
     else:
         return data_fixed
 
+def natural_sort_key(s):
+    '''sort strings containing numbers in human order, e.g. file2 before file10
+    use example: filenames_sorted = sorted(filenames, key=natural_sort_key)'''
+    return [int(c) if c.isdigit() else c.lower() for c in re.split(r'(\d+)', s)]
+
+#%% load functions
+# The data loading part should be functionalized. The result should be 1D and fit-ready.
+# for 2D data, assume they have identical x.
+def load_data(f_ins: list, t_reso: float, x_reso: float, source_type: str = '1', **kwargs):
+    '''
+    Format raw data from disk into processible result.
+    Arguments:
+        f_ins: list of input files
+        t_reso: time resolution in ns
+        x_reso: spatial resolution in um
+        source_type: how to get 1D data from 2D raw.
+            '1' to use the first file, 
+            'mean' to average all files, 
+            'max' to take max of all files, 
+            'radial' for radial average, 
+            'interp' for interpolation along a line. 
+    Optional arguments:
+        For 'radial' and 'interp', the output x will be the radial distance or interpolation distance.
+        y_reso: spatial resolution in y direction, in um.
+        theta: angle of interpolation line in radian. Only used for interpolation.
+    Returns:
+        data: 2D array of shape [t, x], the formatted data ready for fitting. For 'radial' and 'interp', x is the radial distance or interpolation distance.
+        t: 1D array of time points in ns, with t=0 aligned to t0.
+        x: 1D array of spatial points in um, with x=0 aligned to center. For 'radial' and 'interp', this is the radial distance or interpolation distance.
+    '''
+    assert source_type in ['1', 'interp', 'radial', 'mean', 'max'], f"Unknown source_type: {source_type}. Should be '1', 'interp', 'radial', 'mean', or 'max'."
+    if source_type == '1':
+        assert len(f_ins) == 1, "For source_type 1, only one file should be provided"
+    # load raw into [t, x, n] array
+    nf = len(f_ins)
+    data_raws = [None] * nf
+    idlast = np.zeros(nf, dtype=int)
+    for i, f in enumerate(f_ins):
+        data_raws[i] = np.loadtxt(f, delimiter="\t")    # index [t, x]
+        idlast[i] = last_nonzero_row_idx(data_raws[i])
+    # check all data_raws have the same size
+    assert all(data_raw.shape == data_raws[0].shape for data_raw in data_raws), "All data_raws must have the same shape"
+    data_raw = np.stack(data_raws, axis=2)  # [t, x, n]
+    trailing_0_id = np.max(idlast)
+    # remove trailing 0s. 
+    data_raw = data_raw[:trailing_0_id+1, :, :]
+    # make axis
+    t = np.arange(data_raw.shape[0]) * t_reso
+    x = np.arange(data_raw.shape[1]) * x_reso
+    # find t0 and remove bg
+    t0 = t[np.argmax(np.mean(data_raw, axis=(1, 2)))]   # DEBUG: might need smoothing.
+    t = t - t0
+    BG_T0_BUFFER = 1 # ns before t0 to calculate background. Subject to change.
+    bg_mask = t < -BG_T0_BUFFER
+    if not np.any(bg_mask):
+        print("WARNING: not enough data point to calculate background and bg is set to 0. Consider decrease BG_T0_BUFFER.")
+        bg = 0
+    else:
+        bg = np.median(data_raw[bg_mask, :, :])
+    data_raw = data_raw - bg
+    # format output
+    if source_type == '1':
+        data = data_raw[:, :, 0]  # [t, x]
+    elif source_type == 'mean':
+        data = np.mean(data_raw, axis=2)  # average over n, result in [t, x]
+    elif source_type == 'max':
+        data = np.max(data_raw, axis=2)  # max over n, result
+    else:
+        # for 2D data, convert into 1D. Allow 'interpolation' and 'radial average' for aniso and iso data.
+        y_reso = kwargs.get('y_reso', x_reso)  # in um. Only used for interpolation. Assume square pixels for now.
+        y = np.arange(data_raw.shape[2]) * y_reso
+        # get center
+        x0id = np.argmax(np.mean(data_raw, axis=(0, 2)))
+        y0id = np.argmax(np.mean(data_raw, axis=(0, 1)))
+        x0, y0 = x[x0id], y[y0id]
+        if source_type == 'radial':
+            # calculate radial distance
+            r_max = min(
+                x[x0id]  - x[0],       # left boundary
+                x[-1]    - x[x0id],    # right boundary
+                y[y0id]  - y[0],       # bottom boundary
+                y[-1]    - y[y0id],    # top boundary
+                )
+            X, Y = np.meshgrid(x, y, indexing='ij')   # shape (Nx, Ny)
+            R = np.sqrt((X - x0)**2 + (Y - y0)**2)
+            r_reso = max(x_reso, y_reso)    # DEBUG here
+            r = np.arange(0, r_max, r_reso)
+            data = np.zeros((data_raw.shape[0], r.shape[0]))  # [t, r]
+            for i, ri in enumerate(r):
+                mask = (R >= ri) & (R < ri + r_reso)
+                if mask.any():
+                    data[:, i] = np.mean(data_raw[:, mask], axis=1)
+            x = r
+        elif source_type == 'interp':
+            from scipy.interpolate import RegularGridInterpolator
+            theta = kwargs.get('theta', 0)  # angle of interpolation line in radian.
+            # check boundary
+            r_candidates = []
+            if np.cos(theta) != 0:
+                r_candidates.append((x[-1] - x0) / np.cos(theta))  # right boundary
+                r_candidates.append((x[0] - x0) / np.cos(theta))   # left boundary
+            if np.sin(theta) != 0:
+                r_candidates.append((y[-1] - y0) / np.sin(theta))  # top boundary
+                r_candidates.append((y[0] - y0) / np.sin(theta))   # bottom boundary
+            r_candidates_neg = [rc for rc in r_candidates if rc <= 0]
+            r_candidates_pos = [rc for rc in r_candidates if rc >= 0]
+            # Take the tightest bounds to stay within the grid
+            r_start = max(r_candidates_neg) if r_candidates_neg else 0.0
+            r_end   = min(r_candidates_pos) if r_candidates_pos else 0.0
+            r_reso = max(x_reso, y_reso)     # DEBUG here
+            EPISLON = 1e-6  # small buffer to ensure we don't go out of bounds due to floating point errors
+            r = np.arange(r_start + EPISLON, r_end - EPISLON, r_reso)
+            x_sample = x0 + r * np.cos(theta)
+            y_sample = y0 + r * np.sin(theta)
+            points = np.column_stack([x_sample, y_sample])
+            data = np.zeros((data_raw.shape[0], r.size))
+            for i in range(data_raw.shape[0]):
+                interpolator = RegularGridInterpolator((x, y), data_raw[i, :, :], bounds_error=True)    
+                data[i, :] = interpolator(points)
+            x = r
+    return data, t, x
 #%% config
 ##### data params #####
+source_mode = 'interp'  # how to get 1D data from 2D raw. '1' to use the first file, 'mean' to average all files, 'max' to take max of all files, 'radial' for radial average, 'interp' for interpolation along a line. For 'radial' and 'interp', the output x will be the radial distance or interpolation distance.
 f_in = None  # path to the .dat file. if None, will prompt user to select file
 t_step = 0.008  # time step in ns
 motor_step = 10  # motor step in um
@@ -183,23 +306,40 @@ t_range = [-0.5, 10]  # time range to analyze, in ns. If None, will use full ran
 t0_buffer = 1  # buffer before t0 to calculate background, in positive ns.
 t_binning_width = 10 # time binning factor. If None, no binning.
 fold_row = None   # end of rows to be folded to the end of data, use None to skip. Unit in row Useful when total measurement time is short.
+t_step = 0.032  # time step in ns
+motor_step = 10  # motor step in um
+mag = 182  # microscopy magnification
+theta = 90  # angle of interpolation line in radian. Only used for interpolation.
+##### process params #####
+x_range = None   # spatial range to analyze, in um. If None, will use full range
+t_range = [0, 100]  # time range to analyze, in ns. If None, will use full range
+t0_buffer = -1  # buffer before t0 to calculate background, in ns. Used when subtracting background
+t_binning_width = 32 # time binning factor. If None, no binning.
 x_fit_model = hyf.func_class_gaussian  # model to fit spatial profile
-t_fit_model = hyf.exp_ne_wrapper(2, np.array([1, 5]), trig_non_negative=True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
+t_fit_model = hyf.exp_ne_wrapper(1, np.array([10]), trig_non_negative_A = True, trig_non_negative_c = True)  # model to fit time profile. Currently only supports hyf.exp_ne_wrapper
 trig_MSD_rezero = False # whether to re-zero MSD calculation by subtracting initial MSD value
-displacement_source = 'fit' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
+displacement_source = 'MSD' # source of diffusion coefficient calculation. 'fit' to use fitted w, 'MSD' to use MSD
 sigma_correction = True # whether to apply sigma correction in D fitting
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.'] # units for each fitted param, in order
-representative_t = [0, 1, 4, 8]     # representative frames to be plotted.
+representative_t = [0, 10, 30, 90]     # representative frames to be plotted.
 ##### output params #####
 f_out = None  # path to save output files. If None, will use input file directory
 overwrite_mode = False # whether to overwrite existing output files
 ##### END OF CONFIG #####
-if f_in is None:
+# need to process differently depending on load mode
+# NOTE: f_in must be a list, even with len == 1 for mode == 1
+if source_mode == '1':  # 1D data expect 1 file only
+    if f_in is None:
+        f_in = hyb.GUI_qt_get_file("Select PL imaging .dat file", False, remember=True)
+    # get dir_in
+    dir_in, name, _ = hyb.get_file_name_from_dir(f_in[0])
+else:
     f_in = hyb.GUI_qt_get_file("Select PL imaging .dat file", False, remember=True)
-    f_in = f_in[0]
-# get dir_in
-dir_in, name, _ = hyb.get_file_name_from_dir(f_in)
+    f_in = sorted(f_in, key=lambda f: natural_sort_key(hyb.get_file_name_from_dir(f)[1]))
+    names = [hyb.get_file_name_from_dir(f)[1] for f in f_in]
+    # sort files by name to ensure correct order for mean and max mode
+    dir_in, name, _ = hyb.get_file_name_from_dir(f_in[0])
 
 # get time data
 todaydate = datetime.today()
@@ -240,25 +380,7 @@ params = hyconfig.config_class([params_data, params_process, params_visualize, p
 params.to_json(f"{params_output.dir_out}\\config_files_{formatted_date}.json")
 params.to_pickle(f"{params_output.dir_out}\\config_files_{formatted_date}.pkl")
 #%% load
-data = np.loadtxt(params_data.f_in, delimiter="\t") # I need to check the delimiter
-
-# 447 replica fix
-if trig_447_replica_fix:
-    data, data_replica, n_replica = fix_replica(data, t_step, replica_n, min_dt, 2 * t0_buffer, debug = True)   # data_replica is only for debug
-    print(f"447 replica fixed. Found replica peaks at rows {n_replica}. Averaged over {replica_n} replica.")
-# delete trailing 0s
-data = data[:last_nonzero_row_idx(data)+1]
-
-nt = data.shape[0]
-nx = data.shape[1]
-
-t = np.arange(nt) * params_data.t_step
-x_step = params_data.motor_step / params_data.mag  # in um
-x = np.arange(nx) * x_step  # in um
-# fold
-if fold_row is not None:
-    data = fold_trpl(data, fold_row)
-    t = np.arange(nt) * params_data.t_step
+data, t, x = load_data(f_in, t_step, motor_step / mag, source_type=source_mode, y_reso = motor_step / mag, theta = theta)
 
 
 # t binning
