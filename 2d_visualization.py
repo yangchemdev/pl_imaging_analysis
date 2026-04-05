@@ -25,17 +25,19 @@ import re
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import uniform_filter1d
-from hytools.hy_basic import check_make_dir
+from hytools.hy_basic import check_make_dir, GUI_qt_get_dir
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # PARAMETERS  –  edit these
 # ─────────────────────────────────────────────────────────────────────────────
-DATA_DIR   = "F:\\OneDrive - purdue.edu\\Data\\Optical Spectra\\PL\\2026\\260327 1DLOC PL_fin\\plimg\\11"
-OUTPUT_DIR = check_make_dir(f"{DATA_DIR}\\fig")
+DATA_DIR   = GUI_qt_get_dir(True, "Select directory containing .txt files to load")
+OUTPUT_DIR = check_make_dir(f"{DATA_DIR}\\preview")
 FILE_GLOB  = "*.txt"
 
-T_BIN      = 1024        # raw time rows averaged per output frame
+T_BIN      = 4        # raw time rows averaged per output frame
 DT         = 0.016      # time step (ns, ps, … — whatever your instrument uses)
+T_RANGE    = (-1, 2)       # (t_min, t_max) in physical time units; None = full range
 
 # T0 detection: the spatially-summed trace is smoothed with a boxcar of this
 # width (in raw rows) before argmax.  Increase if the peak is very noisy;
@@ -442,6 +444,7 @@ def save_frames(
         fig.colorbar(mesh, ax=ax, label="Intensity")
         ax.set_xlabel("x")
         ax.set_ylabel("y")
+        ax.set_aspect("equal")
         ax.set_title(f"t = {t[i]:.4g}  (frame {i + 1}/{n_t_binned})")
 
         fname = os.path.join(output_dir, f"frame_{i:0{n_digits}d}_t{t[i]:.4g}.png")
@@ -462,6 +465,17 @@ def main():
     print(f"Detecting t=0 (boxcar smooth width = {T0_SMOOTH} raw rows) …")
     i0_raw = find_t0_index(data_raw, smooth_width=T0_SMOOTH)
     print(f"  Peak at raw index {i0_raw}  (raw time = {i0_raw * DT:.4g})")
+
+    # ── Cut by time range ─────────────────────────────────────────────────────
+    if T_RANGE is not None:
+        t_min, t_max = T_RANGE
+        i_min = max(0, i0_raw + int(np.round(t_min // DT)))
+        i_max = min(n_t_raw, i0_raw + int(np.round(t_max // DT)))
+        data_raw = data_raw[:, i_min:i_max, :]
+        n_t_raw = data_raw.shape[1]
+        i0_raw = i0_raw - i_min  
+        print(f"  Applied time range cut: [{t_min}, {t_max}] → indices [{i_min}, {i_max}]")
+        print(f"  New shape after time cut: {data_raw.shape}")
 
     # ── Bin time axis ────────────────────────────────────────────────────────
     print(f"Binning time axis by {T_BIN} …")

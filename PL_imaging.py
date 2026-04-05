@@ -342,23 +342,23 @@ def load_data(f_ins: list, t_reso: float, x_reso: float, source_type: str = '1',
 
 #%% config
 ##### data params #####
-source_mode = 'interp'      # '1', 'mean', 'max', 'radial', 'interp'
+source_mode = 'mean'      # '1', 'mean', 'max', 'radial', 'interp'
 f_in = None                 # path(s) to .dat file(s). If None, GUI prompt is used.
-t_step = 0.016              # time step in ns
+t_step = 0.032              # time step in ns
 motor_step_x = 5           # motor step in um (x)
 motor_step_y = 10           # motor step in um (y; ignored in '1', 'mean', 'max' modes)
-mag = 182                   # microscope magnification
+mag = 1                   # microscope magnification
 trig_447_replica_fix = False  # align and average 447 nm laser replicas
-replica_n = 4               # number of replicas
-min_dt = 5                  # minimum separation between replicas in ns
+replica_n = 4               # number of replicas. Only used in 447 correction.
+min_dt = 5                  # minimum separation between replicas in ns. Only used in 447 correction.
 theta = 120 / 180 * np.pi   # interpolation angle in radians (interp mode only)
 fold_row = None             # row index to fold data to end; None to skip
 
 ##### process params #####
 x_range = None              # spatial range to analyze in um; None = full range
-t_range = [0, 40]           # time range to analyze in ns; None = full range
+t_range = [0, 1]           # time range to analyze in ns; None = full range
 t0_buffer = -1              # buffer before t0 for background subtraction in ns
-t_binning_width = 64        # time binning factor; None = no binning
+t_binning_width = 2        # time binning factor; None = no binning
 x_fit_model = hyf.func_class_gaussian
 t_fit_model = hyf.exp_ne_wrapper(1, np.array([10]), trig_non_negative_A=True, trig_non_negative_c=True)
 trig_MSD_rezero = False     # re-zero MSD by subtracting initial MSD value
@@ -367,7 +367,7 @@ sigma_correction = True     # apply sigma correction in D fitting
 
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.']  # units for each Gaussian fit parameter
-representative_t = [0, 5, 10, 40]           # time points for representative spatial plots
+representative_t = [0, 0.5, 1, 1.5]           # time points for representative spatial plots
 
 ##### output params #####
 f_out = None                # output path; None = use input file directory
@@ -456,7 +456,11 @@ data_tavg_temp = data_tavg_temp / np.max(data_tavg_temp)
 data_xavg_temp = data_xavg_temp / np.max(data_xavg_temp)
 
 x0 = x[hyb.numpy_nearest(data_tavg_temp, np.max(data_tavg_temp), 'id')]
+# use max
 t0 = t[hyb.numpy_nearest(data_xavg_temp, np.max(data_xavg_temp), 'id')]
+# # use first time to reach 50% of max to estimate t0.
+# tmaxid = hyb.numpy_nearest(data_xavg_temp, np.max(data_xavg_temp), 'id')
+# t0 = t[hyb.numpy_nearest(data_xavg_temp[:tmaxid], 0.5 * np.max(data_xavg_temp), 'id')]
 print(f"t0 is at {t0:.4f} ns, or row {np.round(t0 / t_step):.0f}")
 
 dx = x - x0
@@ -471,7 +475,7 @@ if not np.any(bg_mask):
     )
 bg = np.percentile(data[bg_mask, :], 45, axis=0)
 data = data - bg[np.newaxis, :]
-data[data <= 0] = 0.1  # clamp non-positive values to epsilon
+# data[data <= 0] = 0.1  # clamp non-positive values to epsilon
 
 # spatial and temporal range cuts
 if x_range is not None:
@@ -521,9 +525,9 @@ xfit_status   = np.zeros(nt)
 for idt in tqdm(range(nt)):
     x_fitter = hyf.fitter_1D(
         f"xfit_#{idt}", x_fit_model, x, data[idt, :],
-        lb=np.array([0, -np.inf, 0.1, -np.inf]),
-        hb=np.array([np.inf, np.inf, 1, np.inf]),
-        p0=np.array([np.max(data[idt, :]), x0, 0.5, 0]),  # [A, x0, w, offset]
+        lb=np.array([0,         -np.inf,    0.1,        -np.inf]),
+        hb=np.array([np.inf,    np.inf,     np.inf,     np.inf]),
+        p0=np.array([np.max(data[idt, :]), x0, 10, 0]),  # [A, x0, w, offset]
     )
     x_fitter.fit()
     xfit_params[idt, :]   = x_fitter.params['value']
