@@ -24,6 +24,7 @@ import os
 import re
 import numpy as np
 import matplotlib.pyplot as plt
+import pandas as pd
 from scipy.ndimage import uniform_filter1d
 from hytools.hy_basic import check_make_dir, GUI_qt_get_dir
 
@@ -36,16 +37,16 @@ OUTPUT_DIR = check_make_dir(f"{DATA_DIR}\\preview")
 FILE_GLOB  = "*.txt"
 
 T_BIN      = 4        # raw time rows averaged per output frame
-DT         = 0.016      # time step (ns, ps, … — whatever your instrument uses)
+DT         = 0.032     # time step (ns, ps, … — whatever your instrument uses)
 T_RANGE    = (-1, 2)       # (t_min, t_max) in physical time units; None = full range
 
 # T0 detection: the spatially-summed trace is smoothed with a boxcar of this
 # width (in raw rows) before argmax.  Increase if the peak is very noisy;
 # decrease if the rise is sharp and you want finer localisation.
-T0_SMOOTH  = 64
+T0_SMOOTH  = 4
 
-DX         = 10 / 182    # x step (same units as your spatial axis)
-DY         = 10 / 182     # y step (same units as your spatial axis)
+DX         = 5 / 1    # x step (same units as your spatial axis)
+DY         = 10 / 1     # y step (same units as your spatial axis)
 
 # Colormap / display
 CMAP        = "RdBu_r"
@@ -239,7 +240,8 @@ def save_time_averaged_image(
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_title("Time-averaged intensity")
-
+    ax.set_aspect("equal")
+    
     fname = os.path.join(output_dir, "time_average.png")
     fig.savefig(fname, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
@@ -297,7 +299,7 @@ def fit_gaussians_vs_time(
     y: np.ndarray,
     output_dir: str,
     dpi: int,
-) -> dict[str, np.ndarray]:
+) -> pd.DataFrame:
     """
     For every binned time frame, project the 2-D image onto each spatial axis
     by summation and fit a 1-D Gaussian independently in x and in y.
@@ -316,8 +318,9 @@ def fit_gaussians_vs_time(
 
     Returns
     -------
-    results : dict with keys
-        'x_amp', 'x_x0', 'x_sigma', 'x_bg',
+    df : pd.DataFrame
+        DataFrame containing the fit parameters with columns
+        't', 'x_amp', 'x_x0', 'x_sigma', 'x_bg',
         'y_amp', 'y_x0', 'y_sigma', 'y_bg'
         each a (n_t_binned,) float array.
 
@@ -381,7 +384,10 @@ def fit_gaussians_vs_time(
     plt.close(fig)
     print(f"  Saved Gaussian fit parameter plot → {fname}")
 
-    return results
+    # organize into a pandas Dataframe
+    df = pd.DataFrame(results)
+    df.insert(0, "t", t)  # add time as the first column
+    return df
 
 
 def pad_edges(arr: np.ndarray) -> np.ndarray:
@@ -523,13 +529,13 @@ def main():
 
     # ── 1-D Gaussian fits vs time ─────────────────────────────────────────────
     print("Fitting 1-D Gaussians vs time …")
-    fit_gaussians_vs_time(
+    df_fit_result = fit_gaussians_vs_time(
         data_binned, t, x, y,
         output_dir=OUTPUT_DIR,
         dpi=SAVE_DPI,
     )
-
-    print("Done.")
+    df_fit_result.to_csv(os.path.join(OUTPUT_DIR, "gaussian_fit_params.csv"), index=True)
+    print("Job Done.")
 
 
 if __name__ == "__main__":
