@@ -45,8 +45,8 @@ T_RANGE    = (-1, 2)       # (t_min, t_max) in physical time units; None = full 
 # decrease if the rise is sharp and you want finer localisation.
 T0_SMOOTH  = 4
 
-DX         = 5 / 1    # x step (same units as your spatial axis)
-DY         = 10 / 1     # y step (same units as your spatial axis)
+DX         = 5 / 214    # x step (same units as your spatial axis)
+DY         = 10 / 214     # y step (same units as your spatial axis)
 
 # Colormap / display
 CMAP        = "RdBu_r"
@@ -241,7 +241,7 @@ def save_time_averaged_image(
     ax.set_ylabel("y")
     ax.set_title("Time-averaged intensity")
     ax.set_aspect("equal")
-    
+
     fname = os.path.join(output_dir, "time_average.png")
     fig.savefig(fname, dpi=dpi, bbox_inches="tight")
     plt.close(fig)
