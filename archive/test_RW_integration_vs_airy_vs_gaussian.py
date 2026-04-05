@@ -4,8 +4,8 @@ from scipy.optimize import curve_fit
 from matplotlib import pyplot as plt
 #————— PARAMETERS ————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 wavelength   = 550e-9   # incident light wavelength
-NA = 0.4         # Numerical Aperture
-R = 2e-6        # simulation range
+NA = 0.9         # Numerical Aperture
+R = 1e-6        # simulation range
 #————— END ———————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————————
 
 def richards_wolf_focal_field(r, z, wavelength, NA, n=1.0, polarization='x', n_theta=300, n_phi=300):
@@ -195,19 +195,19 @@ fwhm_airy = x[id1] - x[id0]
 param_RW, _ = curve_fit(gaussian, x, I_line, p0=[1.0, 0.0, fwhm_RW/2.355, 0.0])
 I_gaussian = gaussian(x, *param_RW)
 sigma_RW = param_RW[2]
-fwhm_gaussian_RW = 2.355 * sigma_RW
+# fwhm_gaussian_RW = 2.355 * sigma_RW
 
 param_airy, _ = curve_fit(gaussian, x, I_airy, p0=[1.0, 0.0, fwhm_airy/2.355, 0.0])
 I_gaussian_airy = gaussian(x, *param_airy)
 sigma_airy = param_airy[2]
-fwhm_gaussian_airy = 2.355 * sigma_airy
+# fwhm_gaussian_airy = 2.355 * sigma_airy
 
 # visualize
 fig, ax = plt.subplots(dpi=200)
-ax.plot(x*1e6, I_line, label = "RW")
-ax.plot(x*1e6, I_airy, label="Airy disk")
-ax.plot(x*1e6, I_gaussian, label = f"Gaussian fit RW, fwhm = {fwhm_gaussian_RW*1e6:.3g} µm, sigma = {sigma_RW*1e6:.3g} µm", linestyle="--")
-ax.plot(x*1e6, I_gaussian_airy, label = f"Gaussian fit Airy, fwhm = {fwhm_gaussian_airy*1e6:.3g} µm, sigma = {sigma_airy*1e6:.3g} µm", linestyle="--")
+ax.plot(x*1e6, I_line, label = f"RW, fwhm = {fwhm_RW*1e6:.3g} µm")
+ax.plot(x*1e6, I_airy, label=f"Airy disk, fwhm = {fwhm_airy*1e6:.3g} µm")
+ax.plot(x*1e6, I_gaussian, label = f"Gaussian fit RW, sigma = {sigma_RW*1e6:.3g} µm", linestyle="--")
+ax.plot(x*1e6, I_gaussian_airy, label = f"Gaussian fit Airy, sigma = {sigma_airy*1e6:.3g} µm", linestyle="--")
 ax.set_xlabel("x (µm)")
 ax.set_ylabel("Intensity")
 ax.set_title(f"WL={wavelength*1e9:.0f} nm, NA={NA}")
