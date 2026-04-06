@@ -36,14 +36,14 @@ DATA_DIR   = GUI_qt_get_dir(True, "Select directory containing .txt files to loa
 OUTPUT_DIR = check_make_dir(f"{DATA_DIR}\\preview")
 FILE_GLOB  = "*.txt"
 
-T_BIN      = 4        # raw time rows averaged per output frame
-DT         = 0.032     # time step (ns, ps, … — whatever your instrument uses)
-T_RANGE    = (-1, 2)       # (t_min, t_max) in physical time units; None = full range
+T_BIN      = 100        # raw time rows averaged per output frame
+DT         = 0.016     # time step (ns, ps, … — whatever your instrument uses)
+T_RANGE    = (-1, 100)       # (t_min, t_max) in physical time units; None = full range
 
 # T0 detection: the spatially-summed trace is smoothed with a boxcar of this
 # width (in raw rows) before argmax.  Increase if the peak is very noisy;
 # decrease if the rise is sharp and you want finer localisation.
-T0_SMOOTH  = 4
+T0_SMOOTH  = 32
 
 DX         = 5 / 214    # x step (same units as your spatial axis)
 DY         = 10 / 214     # y step (same units as your spatial axis)
