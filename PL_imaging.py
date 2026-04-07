@@ -342,12 +342,12 @@ def load_data(f_ins: list, t_reso: float, x_reso: float, source_type: str = '1',
 
 #%% config
 ##### data params #####
-source_mode = 'interp'      # '1', 'mean', 'max', 'radial', 'interp'
+source_mode = '1'      # '1', 'mean', 'max', 'radial', 'interp'
 f_in = None                 # path(s) to .dat file(s). If None, GUI prompt is used.
 t_step = 0.016              # time step in ns
 motor_step_x = 5           # motor step in um (x)
 motor_step_y = 10           # motor step in um (y; ignored in '1', 'mean', 'max' modes)
-mag = 214                   # microscope magnification
+mag = 150                   # microscope magnification
 trig_447_replica_fix = False  # align and average 447 nm laser replicas
 replica_n = 4               # number of replicas. Only used in 447 correction.
 min_dt = 5                  # minimum separation between replicas in ns. Only used in 447 correction.
@@ -356,18 +356,18 @@ fold_row = None             # row index to fold data to end; None to skip
 
 ##### process params #####
 x_range = None              # spatial range to analyze in um; None = full range
-t_range = [0, 50]           # time range to analyze in ns; None = full range
-t0_buffer = -1              # buffer before t0 for background subtraction in ns
-t_binning_width = 64        # time binning factor; None = no binning
+t_range = [0, 500]           # time range to analyze in ns; None = full range
+t0_buffer = 5              # buffer in ns before t0 for background subtraction in ns. NOTE must be positive value.
+t_binning_width = 512        # time binning factor; None = no binning
 x_fit_model = hyf.func_class_gaussian
 t_fit_model = hyf.exp_ne_wrapper(1, np.array([10]), trig_non_negative_A=True, trig_non_negative_c=True)
 trig_MSD_rezero = False     # re-zero MSD by subtracting initial MSD value
 displacement_source = 'fit' # 'fit' (use fitted Gaussian width) or 'MSD'
-sigma_correction = True     # apply sigma correction in D fitting
+sigma_correction = False     # apply sigma correction in D fitting
 
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.']  # units for each Gaussian fit parameter
-representative_t = [0, 10, 20, 40]           # time points for representative spatial plots
+representative_t = [0, 10, 50, 200]           # time points for representative spatial plots
 
 ##### output params #####
 f_out = None                # output path; None = use input file directory
@@ -446,6 +446,7 @@ if fold_row is not None:
 if t_binning_width is not None:
     data = bin_rows_2D(data, t_binning_width)
     t = bin_rows_1D(t, t_binning_width)
+print(f"Binned time resolution: {t_step * (t_binning_width if t_binning_width is not None else 1):.3f} ns")
 
 nt = data.shape[0]
 
@@ -469,11 +470,10 @@ dt = t - t0
 # background subtraction
 bg_mask = dt < -1 * t0_buffer
 if not np.any(bg_mask):
-    raise ValueError(
-        f"No time points found for background (dt < {t0_buffer}). "
-        f"Min dt = {dt.min():.3f}"
-    )
-bg = np.percentile(data[bg_mask, :], 45, axis=0)
+    print("WARNING: not enough data points to calculate background; setting bg = 0. ")
+    bg = np.zeros(data.shape[1])
+else:
+    bg = np.percentile(data[bg_mask, :], 45, axis=0)
 data = data - bg[np.newaxis, :]
 # data[data <= 0] = 0.1  # clamp non-positive values to epsilon
 
@@ -570,7 +570,7 @@ if sigma_correction:
     t0id0 = hyb.numpy_nearest(dt_tofit, 0.1, 'idx', direction=1)
     t1id0 = hyb.numpy_nearest(dt_tofit, 1,   'idx', direction=1)
     t1id0 = max(t0id0 + 5, t1id0)
-    print(f"Using rows {t0id0} to {t1id0} to calculate sigma floor.")
+    print(f"Using binned rows {t0id0} to {t1id0} to calculate sigma floor.")
     dis2_sigma_floor = np.median(dis2_sigma[t0id0:t1id0]) * 0.5
     dis2_sigma += dis2_sigma_floor
 else:
