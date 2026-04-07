@@ -356,18 +356,18 @@ fold_row = None             # row index to fold data to end; None to skip
 
 ##### process params #####
 x_range = None              # spatial range to analyze in um; None = full range
-t_range = [0, 500]           # time range to analyze in ns; None = full range
-t0_buffer = 5              # buffer in ns before t0 for background subtraction in ns. NOTE must be positive value.
-t_binning_width = 512        # time binning factor; None = no binning
+t_range = [0, 100]           # time range to analyze in ns; None = full range
+t0_buffer = 2              # buffer in ns before t0 for background subtraction in ns. NOTE must be positive value.
+t_binning_width = 64       # time binning factor; None = no binning
 x_fit_model = hyf.func_class_gaussian
 t_fit_model = hyf.exp_ne_wrapper(1, np.array([10]), trig_non_negative_A=True, trig_non_negative_c=True)
 trig_MSD_rezero = False     # re-zero MSD by subtracting initial MSD value
 displacement_source = 'fit' # 'fit' (use fitted Gaussian width) or 'MSD'
-sigma_correction = False     # apply sigma correction in D fitting
+sigma_correction = True     # apply sigma correction in D fitting
 
 ##### visualize params #####
 param_units = ['a.u.', 'um', 'um', 'a.u.']  # units for each Gaussian fit parameter
-representative_t = [0, 10, 50, 200]           # time points for representative spatial plots
+representative_t = [0, 10, 25, 75]           # time points for representative spatial plots
 
 ##### output params #####
 f_out = None                # output path; None = use input file directory
@@ -386,7 +386,7 @@ else:
     dir_in, name, _ = hyb.get_file_name_from_dir(f_in[0])
 
 formatted_date = datetime.today().strftime('%y%m%d')
-dir_out = hyb.check_make_dir(f"{dir_in}\\{name}_output_{formatted_date}", auto_rename=not overwrite_mode)
+dir_out = hyb.check_make_dir(f"{dir_in}\\{name}_output_{formatted_date}_0~100ns", auto_rename=not overwrite_mode)
 
 # save config
 params_data = hyconfig.code_section({
@@ -395,7 +395,7 @@ params_data = hyconfig.code_section({
     "t_step": t_step,
     "motor_step": motor_step_x,
     "mag": mag,
-})
+}, name = 'data')
 params_process = hyconfig.code_section({
     "x_range": x_range,
     "t_range": t_range,
@@ -407,15 +407,15 @@ params_process = hyconfig.code_section({
     "trig_MSD_rezero": trig_MSD_rezero,
     "displacement_source": displacement_source,
     "sigma_correction": sigma_correction,
-})
+}, name = 'process')
 params_visualize = hyconfig.code_section({
     "param_units": param_units,
     "representative_t": representative_t,
-})
+}, name = 'visualize')
 params_output = hyconfig.code_section({
     "dir_out": dir_out,
     "overwrite_mode": overwrite_mode,
-})
+}, name = 'output')
 params = hyconfig.config_class([params_data, params_process, params_visualize, params_output])
 params.to_json(f"{params_output.dir_out}\\config_files_{formatted_date}.json")
 params.to_pickle(f"{params_output.dir_out}\\config_files_{formatted_date}.pkl")
